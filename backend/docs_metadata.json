@@ -1,0 +1,1761 @@
+{
+  "models": [
+    {
+      "table_name": "login",
+      "class_name": "Login",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "computer_code",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "password_hash",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "student_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": [
+            "student.id"
+          ]
+        },
+        {
+          "name": "staff_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": [
+            "staff.id"
+          ]
+        },
+        {
+          "name": "active",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "is_first_login",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "password_changed_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "failed_login_attempts",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "locked_until",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "last_login",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "student",
+          "target": "Student",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "staff",
+          "target": "Staff",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "refresh_tokens",
+          "target": "RefreshToken",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "refresh_tokens",
+      "class_name": "RefreshToken",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "user_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "login.id"
+          ]
+        },
+        {
+          "name": "token_hash",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "expires_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "user",
+          "target": "Login",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "institute",
+      "class_name": "Institute",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(150)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "departments",
+          "target": "Department",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "department",
+      "class_name": "Department",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "institue_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "institute.id"
+          ]
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "dept_code",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "have_student",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "have_staff",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "institute",
+          "target": "Institute",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "academic_programs",
+          "target": "AcademicProgram",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "specializations",
+          "target": "Specialization",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "program",
+      "class_name": "Program",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "program_code",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "academic_programs",
+          "target": "AcademicProgram",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "specializations",
+          "target": "Specialization",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "specialization",
+      "class_name": "Specialization",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "program_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "program.id"
+          ]
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "department.id"
+          ]
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(150)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "specialization_code",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "program",
+          "target": "Program",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "department",
+          "target": "Department",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "academic_programs",
+          "target": "AcademicProgram",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "academic_program",
+      "class_name": "AcademicProgram",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "department.id"
+          ]
+        },
+        {
+          "name": "program_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "program.id"
+          ]
+        },
+        {
+          "name": "specialization_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": [
+            "specialization.id"
+          ]
+        },
+        {
+          "name": "duration_years",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "total_semesters",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "entry_semester",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "department",
+          "target": "Department",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "program",
+          "target": "Program",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "specialization",
+          "target": "Specialization",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "academic_session",
+      "class_name": "AcademicSession",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "session_name",
+          "type": "VARCHAR(20)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "start_date",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "end_date",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "academic_terms",
+          "target": "AcademicTerm",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "academic_term",
+      "class_name": "AcademicTerm",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "academic_session_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "academic_session.id"
+          ]
+        },
+        {
+          "name": "term_name",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "start_date",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "end_date",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "academic_session",
+          "target": "AcademicSession",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "student",
+      "class_name": "Student",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "computer_code",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "enrollment_no",
+          "type": "VARCHAR(30)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "first_name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "middle_name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "last_name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "gender",
+          "type": "VARCHAR(1)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "date_of_birth",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "aadhar_no",
+          "type": "VARCHAR(12)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "abc_id",
+          "type": "VARCHAR(20)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "mobile",
+          "type": "VARCHAR(15)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "blood_group",
+          "type": "VARCHAR(5)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "category",
+          "type": "VARCHAR(20)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "religion",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "login_record",
+          "target": "Login",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "addresses",
+          "target": "StudentAddress",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "admissions",
+          "target": "StudentAdmission",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "documents",
+          "target": "StudentDocument",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "entrance_exams",
+          "target": "StudentEntranceExam",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "guardians",
+          "target": "StudentGuardian",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "qualifications",
+          "target": "StudentQualification",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "student_address",
+      "class_name": "StudentAddress",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "student_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "student.id"
+          ]
+        },
+        {
+          "name": "address_type",
+          "type": "VARCHAR(9)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "address_line",
+          "type": "VARCHAR(500)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "district",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "state",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "pincode",
+          "type": "VARCHAR(10)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "student",
+          "target": "Student",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "student_admission",
+      "class_name": "StudentAdmission",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "student_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "student.id"
+          ]
+        },
+        {
+          "name": "academic_program_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "academic_session_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "admission_date",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "admission_type",
+          "type": "VARCHAR(8)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "quota",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "admission_round",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "entry_semester",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(9)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "student",
+          "target": "Student",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "document_type",
+      "class_name": "DocumentType",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "required",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "student_documents",
+          "target": "StudentDocument",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "student_document",
+      "class_name": "StudentDocument",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "student_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "student.id"
+          ]
+        },
+        {
+          "name": "document_type_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "document_type.id"
+          ]
+        },
+        {
+          "name": "submitted",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "verified",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "file_path",
+          "type": "VARCHAR(500)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "verified_by",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "verified_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "remarks",
+          "type": "VARCHAR(500)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "student",
+          "target": "Student",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "document_type",
+          "target": "DocumentType",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "student_entrance_exam",
+      "class_name": "StudentEntranceExam",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "student_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "student.id"
+          ]
+        },
+        {
+          "name": "exam_name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "roll_no",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "score",
+          "type": "NUMERIC(10, 2)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "percentile",
+          "type": "NUMERIC(6, 2)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "exam_rank",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "student",
+          "target": "Student",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "student_guardian",
+      "class_name": "StudentGuardian",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "student_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "student.id"
+          ]
+        },
+        {
+          "name": "relation",
+          "type": "VARCHAR(8)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(200)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "mobile",
+          "type": "VARCHAR(15)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "occupation",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "occupation_description",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "student",
+          "target": "Student",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "student_qualification",
+      "class_name": "StudentQualification",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "student_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "student.id"
+          ]
+        },
+        {
+          "name": "qualification_type",
+          "type": "VARCHAR(7)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "board_university",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "passing_year",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "marks",
+          "type": "NUMERIC(10, 2)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "max_marks",
+          "type": "NUMERIC(10, 2)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "percentage",
+          "type": "NUMERIC(5, 2)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "cgpa",
+          "type": "NUMERIC(4, 2)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "student",
+          "target": "Student",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "designation",
+      "class_name": "Designation",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "d_order",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "designation",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": []
+    },
+    {
+      "table_name": "staff",
+      "class_name": "Staff",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "computer_code",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "title",
+          "type": "VARCHAR(10)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "first_name",
+          "type": "VARCHAR(64)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "middle_name",
+          "type": "VARCHAR(64)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "last_name",
+          "type": "VARCHAR(64)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "date_of_birth",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "gender",
+          "type": "VARCHAR(1)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "mobile1",
+          "type": "VARCHAR(15)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "mobile2",
+          "type": "VARCHAR(15)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "abc_id",
+          "type": "VARCHAR(20)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "aadhar_number",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "permanent_address",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "city",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "date_join",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "date_leave",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "login_record",
+          "target": "Login",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "details",
+          "target": "StaffDetails",
+          "direction": "ONETOMANY"
+        },
+        {
+          "name": "staff_roles",
+          "target": "StaffRole",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "staff_details",
+      "class_name": "StaffDetails",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "staff_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "staff.id"
+          ]
+        },
+        {
+          "name": "designation_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "dept_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": [
+            "department.id"
+          ]
+        },
+        {
+          "name": "qualification",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "experience_years",
+          "type": "FLOAT",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "bank_name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "account_number",
+          "type": "VARCHAR(30)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "ifsc",
+          "type": "VARCHAR(20)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "staff",
+          "target": "Staff",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "department",
+          "target": "Department",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "staff_role",
+      "class_name": "StaffRole",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "staff_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "staff.id"
+          ]
+        },
+        {
+          "name": "role_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "roles.id"
+          ]
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": [
+            "department.id"
+          ]
+        },
+        {
+          "name": "academic_session_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": [
+            "academic_session.id"
+          ]
+        },
+        {
+          "name": "academic_term_id",
+          "type": "INTEGER",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": [
+            "academic_term.id"
+          ]
+        },
+        {
+          "name": "start_date",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "end_date",
+          "type": "DATE",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "staff",
+          "target": "Staff",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "role",
+          "target": "Role",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "department",
+          "target": "Department",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "academic_session",
+          "target": "AcademicSession",
+          "direction": "MANYTOONE"
+        },
+        {
+          "name": "academic_term",
+          "target": "AcademicTerm",
+          "direction": "MANYTOONE"
+        }
+      ]
+    },
+    {
+      "table_name": "roles",
+      "class_name": "Role",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "role_type",
+          "type": "VARCHAR(64)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "permissions",
+          "target": "Permission",
+          "direction": "MANYTOMANY"
+        },
+        {
+          "name": "staff_roles",
+          "target": "StaffRole",
+          "direction": "ONETOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "permissions",
+      "class_name": "Permission",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "permission_name",
+          "type": "VARCHAR(100)",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "description",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "active",
+          "type": "BOOLEAN",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": [
+        {
+          "name": "roles",
+          "target": "Role",
+          "direction": "MANYTOMANY"
+        }
+      ]
+    },
+    {
+      "table_name": "impersonation_logs",
+      "class_name": "ImpersonationLog",
+      "columns": [
+        {
+          "name": "id",
+          "type": "BIGINT",
+          "primary_key": true,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "actor_user_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "target_user_id",
+          "type": "BIGINT",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "actor_role",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "target_role",
+          "type": "VARCHAR(50)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "reason",
+          "type": "VARCHAR(255)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "started_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": false,
+          "foreign_keys": []
+        },
+        {
+          "name": "ended_at",
+          "type": "DATETIME",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "ip_address",
+          "type": "VARCHAR(45)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        },
+        {
+          "name": "user_agent",
+          "type": "VARCHAR(1000)",
+          "primary_key": false,
+          "nullable": true,
+          "foreign_keys": []
+        }
+      ],
+      "relationships": []
+    }
+  ],
+  "routes": []
+}

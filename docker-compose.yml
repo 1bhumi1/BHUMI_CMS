@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: cms_mysql_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: campus_active
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Automatically initialize database schema if needed (placing schema in init directory)
+      - ./backend/campus_active.sql:/docker-entrypoint-initdb.d/campus_active.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: cms_backend_api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:rootpassword@db:3306/campus_active
+      - SYNC_DATABASE_URL=mysql+pymysql://root:rootpassword@db:3306/campus_active
+      - APP_ENV=production
+      - DEBUG=false
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/logs:/app/logs
+
+volumes:
+  mysql_data:
