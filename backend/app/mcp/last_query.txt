@@ -1,0 +1,3 @@
+SELECT notifications.id, notifications.user_id, notifications.message, notifications.is_read, notifications.created_at 
+FROM notifications 
+WHERE notifications.user_id = %s ORDER BY notifications.created_at DESC

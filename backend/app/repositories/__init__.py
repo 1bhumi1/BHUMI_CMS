@@ -59,3 +59,6 @@ specialization_repo = SpecializationRepository()
 academic_program_repo = AcademicProgramRepository()
 academic_session_repo = AcademicSessionRepository()
 academic_term_repo = AcademicTermRepository()
+
+from app.repositories.feedback import FeedbackRepository
+feedback_repo = FeedbackRepository()

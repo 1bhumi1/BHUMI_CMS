@@ -10,6 +10,8 @@ from app.api.v1.academic_sessions import router as academic_sessions_router
 from app.api.v1.lms import router as lms_router
 from app.api.v1.api360 import router as api360_router
 from app.api.v1.notifications import router as notifications_router
+from app.api.v1.chat import router as chat_router
+from app.api.v1.ai import router as ai_router
 
 __all__ = [
     "auth_router",
@@ -24,4 +26,6 @@ __all__ = [
     "lms_router",
     "api360_router",
     "notifications_router",
+    "chat_router",
+    "ai_router",
 ]

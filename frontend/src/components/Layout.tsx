@@ -5,6 +5,7 @@ import Topbar from './Topbar';
 import { useAuth } from '../lib/AuthContext';
 import { AlertTriangle, LogOut } from 'lucide-react';
 import { api } from '../lib/api';
+import FeedbackChatbot from './FeedbackChatbot';
 
 const Layout = () => {
   const { isImpersonating, originalUser, user, login } = useAuth();
@@ -60,6 +61,8 @@ const Layout = () => {
               <Outlet />
             </div>
           </main>
+          {/* Global CMS AI Assistant Chatbot */}
+          <FeedbackChatbot academicSessionId={9} />
         </div>
       </div>
     </div>

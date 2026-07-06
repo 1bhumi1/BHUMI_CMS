@@ -12,6 +12,8 @@ from app.api.v1 import (
     lms_router,
     api360_router,
     notifications_router,
+    chat_router,
+    ai_router,
 )
 
 api_router = APIRouter()
@@ -29,3 +31,5 @@ api_router.include_router(academic_sessions_router)
 api_router.include_router(lms_router)
 api_router.include_router(api360_router)
 api_router.include_router(notifications_router)
+api_router.include_router(chat_router)
+api_router.include_router(ai_router)

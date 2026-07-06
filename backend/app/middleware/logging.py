@@ -20,10 +20,8 @@ logger.setLevel(logging.INFO)
 if not logger.handlers:
     sh = logging.StreamHandler()
     sh.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [ReqID: %(request_id)s] %(message)s"))
+    sh.addFilter(RequestIDFilter())
     logger.addHandler(sh)
-
-# Add the filter to the logger itself so it applies to any handler
-logger.addFilter(RequestIDFilter())
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:

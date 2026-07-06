@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Send } from "lucide-react";
+import FeedbackChatbot from '../components/FeedbackChatbot';
 import { useAuth } from '../lib/AuthContext';
 import {
   Loader2, X, Check, AlertCircle, Eye, ChevronDown, ChevronUp,
