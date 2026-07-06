@@ -155,5 +155,66 @@ class AcademicTermUpdate(BaseModel):
     end_date: Optional[date] = None
 
 
+# Subject Schemas
+class SubjectCreate(BaseModel):
+    subject_code: str = Field(..., max_length=50)
+    subject_name: str = Field(..., max_length=150)
+    department_id: Optional[int] = None
+    active: int = Field(default=1)
+
+class SubjectResponse(BaseModel):
+    id: int
+    subject_code: str
+    subject_name: str
+    department_id: Optional[int]
+    active: int
+
+    class Config:
+        from_attributes = True
+
+class SubjectDetailResponse(SubjectResponse):
+    department: Optional[DepartmentResponse] = None
+
+class SubjectUpdate(BaseModel):
+    subject_code: Optional[str] = Field(None, max_length=50)
+    subject_name: Optional[str] = Field(None, max_length=150)
+    department_id: Optional[int] = None
+    active: Optional[int] = None
+
+
+# SubjectCredit Schemas
+class SubjectCreditCreate(BaseModel):
+    subject_id: int
+    scheme_name: str = Field(..., max_length=100)
+    lecture_credits: int = Field(default=0)
+    tutorial_credits: int = Field(default=0)
+    practical_credits: int = Field(default=0)
+    total_credits: int = Field(default=0)
+
+class SubjectCreditResponse(BaseModel):
+    id: int
+    subject_id: int
+    scheme_name: str
+    lecture_credits: int
+    tutorial_credits: int
+    practical_credits: int
+    total_credits: int
+
+    class Config:
+        from_attributes = True
+
+class SubjectCreditDetailResponse(SubjectCreditResponse):
+    subject: Optional[SubjectResponse] = None
+
+class SubjectCreditUpdate(BaseModel):
+    subject_id: Optional[int] = None
+    scheme_name: Optional[str] = Field(None, max_length=100)
+    lecture_credits: Optional[int] = None
+    tutorial_credits: Optional[int] = None
+    practical_credits: Optional[int] = None
+    total_credits: Optional[int] = None
+
+
+
 
 

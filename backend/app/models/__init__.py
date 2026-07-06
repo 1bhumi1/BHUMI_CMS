@@ -8,6 +8,8 @@ from app.models.academic import (
     AcademicProgram,
     AcademicSession,
     AcademicTerm,
+    Subject,
+    SubjectCredit,
 )
 from app.models.student import (
     Student,
@@ -51,6 +53,8 @@ __all__ = [
     "AcademicProgram",
     "AcademicSession",
     "AcademicTerm",
+    "Subject",
+    "SubjectCredit",
     "Student",
     "StudentAddress",
     "StudentAdmission",

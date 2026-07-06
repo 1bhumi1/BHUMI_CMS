@@ -37,6 +37,8 @@ const LeaveLimits = React.lazy(() => import('./pages/lms/LeaveLimits'));
 const FacultyAssignment = React.lazy(() => import('./pages/lms/FacultyAssignment'));
 const LeaveReports = React.lazy(() => import('./pages/lms/Reports'));
 const Feedback360 = React.lazy(() => import('./pages/Feedback360'));
+const AddSubject = React.lazy(() => import('./pages/academics/AddSubject'));
+const AddSubjectCredit = React.lazy(() => import('./pages/academics/AddSubjectCredit'));
 
 const PageLoader = () => (
   <div className="flex-1 flex items-center justify-center min-h-[50vh]">
@@ -88,6 +90,8 @@ function App() {
                 <Route path="staff/leave/faculty-assignment" element={<Suspense fallback={<PageLoader />}><FacultyAssignment /></Suspense>} />
                 <Route path="staff/reports" element={<Suspense fallback={<PageLoader />}><LeaveReports /></Suspense>} />
                 <Route path="staff/feedback" element={<Suspense fallback={<PageLoader />}><Feedback360 /></Suspense>} />
+                <Route path="staff/academics/schema/add-subject" element={<Suspense fallback={<PageLoader />}><AddSubject /></Suspense>} />
+                <Route path="staff/academics/schema/add-subject-credit" element={<Suspense fallback={<PageLoader />}><AddSubjectCredit /></Suspense>} />
 
                 <Route path="student" element={<Suspense fallback={<PageLoader />}><StudentDashboard /></Suspense>} />
               </Route>

@@ -95,3 +95,33 @@ class AcademicTerm(Base):
 
     # Relationships
     academic_session = relationship("AcademicSession", back_populates="academic_terms")
+
+
+class Subject(Base):
+    __tablename__ = "subject"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    subject_code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    subject_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    department_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("department.id"), nullable=True)
+    active: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    # Relationships
+    department = relationship("Department")
+    credits = relationship("SubjectCredit", back_populates="subject", cascade="all, delete-orphan")
+
+
+class SubjectCredit(Base):
+    __tablename__ = "subject_credit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    subject_id: Mapped[int] = mapped_column(Integer, ForeignKey("subject.id", ondelete="CASCADE"), nullable=False)
+    scheme_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    lecture_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tutorial_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    practical_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Relationships
+    subject = relationship("Subject", back_populates="credits")
+

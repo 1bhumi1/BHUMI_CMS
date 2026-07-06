@@ -22,6 +22,14 @@ from app.schemas.academic import (
     AcademicTermCreate,
     AcademicTermResponse,
     AcademicTermUpdate,
+    SubjectCreate,
+    SubjectResponse,
+    SubjectDetailResponse,
+    SubjectUpdate,
+    SubjectCreditCreate,
+    SubjectCreditResponse,
+    SubjectCreditDetailResponse,
+    SubjectCreditUpdate,
 )
 from app.schemas.response import StandardResponse
 from app.services.academic import academic_service
@@ -33,6 +41,8 @@ from app.repositories import (
     academic_program_repo,
     academic_session_repo,
     academic_term_repo,
+    subject_repo,
+    subject_credit_repo,
 )
 from app.permissions.evaluator import has_permission
 from app.dependencies.auth import get_current_user
@@ -260,3 +270,100 @@ async def delete_academic_term(
 ):
     term = await academic_service.delete_academic_term(db, id)
     return StandardResponse(message="Academic Term deleted successfully", data=AcademicTermResponse.model_validate(term))
+
+
+from app.models.system import Role
+from app.models.staff import StaffRole
+from sqlalchemy import select
+from fastapi import HTTPException
+
+async def verify_hod_role(
+    current_user: Login = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session)
+) -> Login:
+    if not current_user.staff_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. HOD role required.")
+    
+    stmt = select(Role.role_type).join(StaffRole, StaffRole.role_id == Role.id).where(StaffRole.staff_id == current_user.staff_id)
+    res = await db.execute(stmt)
+    roles = res.scalars().all()
+    if not any("hod" in r.lower() for r in roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. HOD role required.")
+    return current_user
+
+
+# Subject Master (HOD Only)
+@router.post("/subjects", response_model=StandardResponse[SubjectResponse], status_code=status.HTTP_201_CREATED)
+async def create_subject(
+    payload: SubjectCreate,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    sub = await academic_service.create_subject(db, payload.model_dump())
+    return StandardResponse(message="Subject created successfully", data=SubjectResponse.model_validate(sub))
+
+@router.get("/subjects", response_model=StandardResponse[List[SubjectDetailResponse]])
+async def list_subjects(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    items = await subject_repo.get_multi_detailed(db)
+    return StandardResponse(data=[SubjectDetailResponse.model_validate(i) for i in items])
+
+@router.put("/subjects/{id}", response_model=StandardResponse[SubjectResponse])
+async def update_subject(
+    id: int,
+    payload: SubjectUpdate,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    sub = await academic_service.update_subject(db, id, payload.model_dump(exclude_unset=True))
+    return StandardResponse(message="Subject updated successfully", data=SubjectResponse.model_validate(sub))
+
+@router.delete("/subjects/{id}", response_model=StandardResponse[SubjectResponse])
+async def delete_subject(
+    id: int,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    sub = await academic_service.delete_subject(db, id)
+    return StandardResponse(message="Subject deleted successfully", data=SubjectResponse.model_validate(sub))
+
+
+# Subject Credit Master (HOD Only)
+@router.post("/subject-credits", response_model=StandardResponse[SubjectCreditResponse], status_code=status.HTTP_201_CREATED)
+async def create_subject_credit(
+    payload: SubjectCreditCreate,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    cred = await academic_service.create_subject_credit(db, payload.model_dump())
+    return StandardResponse(message="Subject credit added successfully", data=SubjectCreditResponse.model_validate(cred))
+
+@router.get("/subject-credits", response_model=StandardResponse[List[SubjectCreditDetailResponse]])
+async def list_subject_credits(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    items = await subject_credit_repo.get_multi_detailed(db)
+    return StandardResponse(data=[SubjectCreditDetailResponse.model_validate(i) for i in items])
+
+@router.put("/subject-credits/{id}", response_model=StandardResponse[SubjectCreditResponse])
+async def update_subject_credit(
+    id: int,
+    payload: SubjectCreditUpdate,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    cred = await academic_service.update_subject_credit(db, id, payload.model_dump(exclude_unset=True))
+    return StandardResponse(message="Subject credit updated successfully", data=SubjectCreditResponse.model_validate(cred))
+
+@router.delete("/subject-credits/{id}", response_model=StandardResponse[SubjectCreditResponse])
+async def delete_subject_credit(
+    id: int,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    cred = await academic_service.delete_subject_credit(db, id)
+    return StandardResponse(message="Subject credit deleted successfully", data=SubjectCreditResponse.model_validate(cred))
+

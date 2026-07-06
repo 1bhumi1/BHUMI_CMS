@@ -122,6 +122,14 @@ const Sidebar = () => {
                 <SidebarItem to="/dashboard/staff/feedback?view=staff-review" icon={Users} label="Full Details" />
               </SidebarGroup>
             )}
+            {role === 'HOD' && (
+              <SidebarGroup icon={BookOpen} label="Academics" activePrefixes={['/staff/academics/schema']}>
+                <SidebarGroup icon={Settings} label="Schema" activePrefixes={['/staff/academics/schema']}>
+                  <SidebarItem to="/dashboard/staff/academics/schema/add-subject" icon={BookMarked} label="Add Subject" />
+                  <SidebarItem to="/dashboard/staff/academics/schema/add-subject-credit" icon={DollarSign} label="Add Subject Credit" />
+                </SidebarGroup>
+              </SidebarGroup>
+            )}
             {role === 'Principal' && (
               <SidebarItem to="/dashboard/staff/feedback?view=principal" icon={Shield} label="Principal Feedback Review" />
             )}

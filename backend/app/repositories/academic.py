@@ -10,6 +10,8 @@ from app.models.academic import (
     AcademicProgram,
     AcademicSession,
     AcademicTerm,
+    Subject,
+    SubjectCredit,
 )
 
 class InstituteRepository(BaseRepository[Institute]):
@@ -71,6 +73,32 @@ class AcademicTermRepository(BaseRepository[AcademicTerm]):
         query = select(AcademicTerm).where(AcademicTerm.academic_session_id == session_id)
         result = await db.execute(query)
         return list(result.scalars().all())
+
+
+class SubjectRepository(BaseRepository[Subject]):
+    def __init__(self):
+        super().__init__(Subject)
+
+    async def get_by_subject_code(self, db: AsyncSession, subject_code: str) -> Optional[Subject]:
+        return await self.get_by_attribute(db, "subject_code", subject_code)
+
+    async def get_multi_detailed(self, db: AsyncSession) -> List[Subject]:
+        from sqlalchemy.orm import joinedload
+        query = select(Subject).options(joinedload(Subject.department))
+        result = await db.execute(query)
+        return list(result.scalars().all())
+
+
+class SubjectCreditRepository(BaseRepository[SubjectCredit]):
+    def __init__(self):
+        super().__init__(SubjectCredit)
+
+    async def get_multi_detailed(self, db: AsyncSession) -> List[SubjectCredit]:
+        from sqlalchemy.orm import joinedload
+        query = select(SubjectCredit).options(joinedload(SubjectCredit.subject))
+        result = await db.execute(query)
+        return list(result.scalars().all())
+
 
 
 
