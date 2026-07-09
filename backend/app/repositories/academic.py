@@ -12,6 +12,10 @@ from app.models.academic import (
     AcademicTerm,
     Subject,
     SubjectCredit,
+    SubjectCategory,
+    SubjectCode,
+    SubjectClassification,
+    SubjectType,
 )
 
 class InstituteRepository(BaseRepository[Institute]):
@@ -84,9 +88,53 @@ class SubjectRepository(BaseRepository[Subject]):
 
     async def get_multi_detailed(self, db: AsyncSession) -> List[Subject]:
         from sqlalchemy.orm import joinedload
-        query = select(Subject).options(joinedload(Subject.department))
+        query = select(Subject).options(
+            joinedload(Subject.department),
+            joinedload(Subject.academic_session)
+        )
         result = await db.execute(query)
         return list(result.scalars().all())
+
+    async def get_subjects_paginated(
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 10,
+        search: Optional[str] = None,
+        academic_session_id: Optional[int] = None,
+        semester: Optional[int] = None
+    ) -> tuple[List[Subject], int]:
+        from sqlalchemy.orm import joinedload
+        from sqlalchemy import func
+        
+        stmt = select(Subject).options(
+            joinedload(Subject.department),
+            joinedload(Subject.academic_session)
+        )
+        
+        if academic_session_id is not None:
+            stmt = stmt.where(Subject.academic_session_id == academic_session_id)
+        if semester is not None:
+            stmt = stmt.where(Subject.semester == semester)
+        if search:
+            search_pattern = f"%{search}%"
+            stmt = stmt.where(
+                (Subject.subject_code.ilike(search_pattern)) |
+                (Subject.subject_name.ilike(search_pattern))
+            )
+            
+        # Count total records matching criteria
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        res_count = await db.execute(count_stmt)
+        total = res_count.scalar() or 0
+        
+        # Paginated fetch ordered by descending ID
+        stmt = stmt.order_by(Subject.id.desc()).offset(skip).limit(limit)
+        res_items = await db.execute(stmt)
+        items = list(res_items.scalars().all())
+        
+        return items, total
 
 
 class SubjectCreditRepository(BaseRepository[SubjectCredit]):
@@ -98,6 +146,27 @@ class SubjectCreditRepository(BaseRepository[SubjectCredit]):
         query = select(SubjectCredit).options(joinedload(SubjectCredit.subject))
         result = await db.execute(query)
         return list(result.scalars().all())
+
+
+class SubjectCategoryRepository(BaseRepository[SubjectCategory]):
+    def __init__(self):
+        super().__init__(SubjectCategory)
+
+
+class SubjectCodeRepository(BaseRepository[SubjectCode]):
+    def __init__(self):
+        super().__init__(SubjectCode)
+
+
+class SubjectClassificationRepository(BaseRepository[SubjectClassification]):
+    def __init__(self):
+        super().__init__(SubjectClassification)
+
+
+class SubjectTypeRepository(BaseRepository[SubjectType]):
+    def __init__(self):
+        super().__init__(SubjectType)
+
 
 
 

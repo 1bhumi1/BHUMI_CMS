@@ -155,12 +155,64 @@ class AcademicTermUpdate(BaseModel):
     end_date: Optional[date] = None
 
 
+# Dropdown / Master Schemas
+class SubjectCategoryResponse(BaseModel):
+    id: int
+    category: str
+    category_code: str
+    active: int
+
+    class Config:
+        from_attributes = True
+
+
+class SubjectCodeResponse(BaseModel):
+    id: int
+    sub_code: str
+    hod_computer_code: int
+    department: int
+    ip: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SubjectClassificationResponse(BaseModel):
+    id: int
+    name: str
+    code: str
+    active: int
+
+    class Config:
+        from_attributes = True
+
+
+class SubjectTypeResponse(BaseModel):
+    id: int
+    name: str
+    code: str
+    active: int
+
+    class Config:
+        from_attributes = True
+
+
 # Subject Schemas
 class SubjectCreate(BaseModel):
     subject_code: str = Field(..., max_length=50)
     subject_name: str = Field(..., max_length=150)
     department_id: Optional[int] = None
     active: int = Field(default=1)
+    
+    academic_session_id: Optional[int] = None
+    academic_session_half: Optional[str] = Field(None, max_length=20)
+    semester: Optional[int] = None
+    subject_category: Optional[str] = Field(None, max_length=100)
+    subject_type: Optional[str] = Field(None, max_length=50)
+    univ_category_code: Optional[str] = Field(None, max_length=32)
+    univ_subject_code_prefix: Optional[str] = Field(None, max_length=32)
+    univ_subject_code_number: Optional[str] = Field(None, max_length=32)
+    univ_subject_code_suffix: Optional[str] = Field(None, max_length=32)
 
 class SubjectResponse(BaseModel):
     id: int
@@ -168,18 +220,45 @@ class SubjectResponse(BaseModel):
     subject_name: str
     department_id: Optional[int]
     active: int
+    
+    academic_session_id: Optional[int]
+    academic_session_half: Optional[str]
+    semester: Optional[int]
+    subject_category: Optional[str]
+    subject_type: Optional[str]
+    univ_category_code: Optional[str]
+    univ_subject_code_prefix: Optional[str]
+    univ_subject_code_number: Optional[str]
+    univ_subject_code_suffix: Optional[str]
 
     class Config:
         from_attributes = True
 
 class SubjectDetailResponse(SubjectResponse):
     department: Optional[DepartmentResponse] = None
+    academic_session: Optional[AcademicSessionResponse] = None
+
+class SubjectListResponse(BaseModel):
+    items: List[SubjectDetailResponse]
+    total: int
+    page: int
+    size: int
 
 class SubjectUpdate(BaseModel):
     subject_code: Optional[str] = Field(None, max_length=50)
     subject_name: Optional[str] = Field(None, max_length=150)
     department_id: Optional[int] = None
     active: Optional[int] = None
+    
+    academic_session_id: Optional[int] = None
+    academic_session_half: Optional[str] = Field(None, max_length=20)
+    semester: Optional[int] = None
+    subject_category: Optional[str] = Field(None, max_length=100)
+    subject_type: Optional[str] = Field(None, max_length=50)
+    univ_category_code: Optional[str] = Field(None, max_length=32)
+    univ_subject_code_prefix: Optional[str] = Field(None, max_length=32)
+    univ_subject_code_number: Optional[str] = Field(None, max_length=32)
+    univ_subject_code_suffix: Optional[str] = Field(None, max_length=32)
 
 
 # SubjectCredit Schemas

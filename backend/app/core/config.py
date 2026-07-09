@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     # ==========================
     REDIS_URL: str = ""
 
+    # ==========================
+    # PayU Payment Gateway
+    # ==========================
+    PAYU_MODE: str = "test"
+    PAYU_KEY: str = "TEST_KEY"
+    PAYU_SALT: str = "TEST_SALT"
+
     @property
     def cors_origins_list(self) -> List[str]:
         if not self.CORS_ORIGINS:

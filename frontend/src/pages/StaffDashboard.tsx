@@ -1,10 +1,42 @@
 import React from 'react';
 import { useAuth } from '../lib/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/api';
+import { Link } from 'react-router-dom';
 import PermissionGuard from '../components/PermissionGuard';
-import { Users, GraduationCap, ClipboardList, BookOpen, DollarSign } from 'lucide-react';
+import { Users, GraduationCap, ClipboardList, BookOpen, DollarSign, Calendar, MapPin, Clock, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 
-const StaffDashboard = () => {
-  const { user, department } = useAuth();
+export default function StaffDashboard() {
+  const { user, role, department } = useAuth();
+
+  // Load events visible to the current staff member
+  const { data: events = [], isLoading: loadingEvents } = useQuery({
+    queryKey: ['user-events-list-staff-dashboard'],
+    queryFn: async () => {
+      // Check role - Principal doesn't participate in events listing
+      if (role === 'Principal') return [];
+      const res = await api.get('/events/');
+      return res.data?.data || [];
+    },
+    enabled: role !== 'Principal'
+  });
+
+  // Load staff's registrations
+  const { data: myRegistrations = [], isLoading: loadingMy } = useQuery({
+    queryKey: ['my-registrations-list-staff-dashboard'],
+    queryFn: async () => {
+      if (role === 'Principal') return [];
+      const res = await api.get('/events/registrations/my');
+      return res.data?.data || [];
+    },
+    enabled: role !== 'Principal'
+  });
+
+  // Filter Upcoming (Not registered yet)
+  const upcomingEvents = events.filter((e: any) => !e.is_registered);
+  
+  // Confirmed registrations
+  const registeredEvents = myRegistrations.filter((r: any) => r.status === 'Confirmed');
 
   return (
     <div className="space-y-6">
@@ -19,6 +51,7 @@ const StaffDashboard = () => {
         </p>
       </div>
 
+      {/* Stats Widgets */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
         <PermissionGuard permission="student.read">
@@ -82,8 +115,85 @@ const StaffDashboard = () => {
         </PermissionGuard>
 
       </div>
+
+      {/* Events Panels (Only for HOD / Faculty - Principal is excluded) */}
+      {role !== 'Principal' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+          
+          {/* Upcoming Events */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                  <Calendar className="text-blue-600 w-5 h-5" /> Upcoming Events
+                </h3>
+                <Link to="/dashboard/staff/academics/events" className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1">
+                  View All <ArrowRight size={12} />
+                </Link>
+              </div>
+
+              {loadingEvents ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : upcomingEvents.length === 0 ? (
+                <p className="text-slate-400 text-sm py-4 text-center">No upcoming events right now.</p>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingEvents.slice(0, 3).map((e: any) => (
+                    <Link
+                      key={e.id}
+                      to={`/dashboard/staff/academics/events/${e.id}`}
+                      className="block p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition cursor-pointer"
+                    >
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-bold text-sm text-slate-800 hover:text-blue-600 transition">{e.title}</h4>
+                        <span className="px-1.5 py-0.5 rounded bg-blue-50 text-[10px] text-blue-700 font-bold uppercase tracking-wider">{e.event_type}</span>
+                      </div>
+                      <div className="flex gap-4 text-[11px] text-slate-500 mt-2">
+                        <span className="flex items-center gap-1"><MapPin size={12} /> {e.venue}</span>
+                        <span className="flex items-center gap-1"><Clock size={12} /> {new Date(e.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Registered Events */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="text-green-600 w-5 h-5" /> Registered Events
+                </h3>
+              </div>
+
+              {loadingMy ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : registeredEvents.length === 0 ? (
+                <p className="text-slate-400 text-sm py-4 text-center">You haven't registered for any events yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {registeredEvents.slice(0, 3).map((r: any) => (
+                    <div key={r.id} className="p-3 rounded-lg border border-slate-100 bg-green-50/20">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-bold text-sm text-slate-800">{r.event_title}</h4>
+                        <span className="px-1.5 py-0.5 rounded bg-green-100 text-[10px] text-green-800 font-bold uppercase tracking-wider">Confirmed</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1.5">Registered on: {new Date(r.registered_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      )}
     </div>
   );
-};
-
-export default StaffDashboard;
+}

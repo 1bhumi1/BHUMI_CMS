@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_db_session
@@ -30,6 +30,11 @@ from app.schemas.academic import (
     SubjectCreditResponse,
     SubjectCreditDetailResponse,
     SubjectCreditUpdate,
+    SubjectCategoryResponse,
+    SubjectCodeResponse,
+    SubjectClassificationResponse,
+    SubjectTypeResponse,
+    SubjectListResponse,
 )
 from app.schemas.response import StandardResponse
 from app.services.academic import academic_service
@@ -43,6 +48,10 @@ from app.repositories import (
     academic_term_repo,
     subject_repo,
     subject_credit_repo,
+    subject_category_repo,
+    subject_code_repo,
+    subject_classification_repo,
+    subject_type_repo,
 )
 from app.permissions.evaluator import has_permission
 from app.dependencies.auth import get_current_user
@@ -302,13 +311,59 @@ async def create_subject(
     sub = await academic_service.create_subject(db, payload.model_dump())
     return StandardResponse(message="Subject created successfully", data=SubjectResponse.model_validate(sub))
 
-@router.get("/subjects", response_model=StandardResponse[List[SubjectDetailResponse]])
+@router.get("/subjects", response_model=StandardResponse[SubjectListResponse])
 async def list_subjects(
+    skip: int = 0,
+    limit: int = 10,
+    search: Optional[str] = None,
+    academic_session_id: Optional[int] = None,
+    semester: Optional[int] = None,
     db: AsyncSession = Depends(get_db_session),
     current_user: Login = Depends(verify_hod_role)
 ):
-    items = await subject_repo.get_multi_detailed(db)
-    return StandardResponse(data=[SubjectDetailResponse.model_validate(i) for i in items])
+    items, total = await subject_repo.get_subjects_paginated(
+        db, skip=skip, limit=limit, search=search, academic_session_id=academic_session_id, semester=semester
+    )
+    return StandardResponse(
+        data=SubjectListResponse(
+            items=[SubjectDetailResponse.model_validate(i) for i in items],
+            total=total,
+            page=(skip // limit) + 1,
+            size=limit
+        )
+    )
+
+@router.get("/subject-categories", response_model=StandardResponse[List[SubjectCategoryResponse]])
+async def list_subject_categories(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    items = await subject_category_repo.get_multi(db, limit=100)
+    return StandardResponse(data=[SubjectCategoryResponse.model_validate(i) for i in items])
+
+@router.get("/subject-code-prefixes", response_model=StandardResponse[List[SubjectCodeResponse]])
+async def list_subject_code_prefixes(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    items = await subject_code_repo.get_multi(db, limit=100)
+    return StandardResponse(data=[SubjectCodeResponse.model_validate(i) for i in items])
+
+@router.get("/subject-classifications", response_model=StandardResponse[List[SubjectClassificationResponse]])
+async def list_subject_classifications(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    items = await subject_classification_repo.get_multi(db, limit=100)
+    return StandardResponse(data=[SubjectClassificationResponse.model_validate(i) for i in items])
+
+@router.get("/subject-types", response_model=StandardResponse[List[SubjectTypeResponse]])
+async def list_subject_types(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(verify_hod_role)
+):
+    items = await subject_type_repo.get_multi(db, limit=100)
+    return StandardResponse(data=[SubjectTypeResponse.model_validate(i) for i in items])
 
 @router.put("/subjects/{id}", response_model=StandardResponse[SubjectResponse])
 async def update_subject(

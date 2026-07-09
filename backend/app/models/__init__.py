@@ -86,5 +86,30 @@ __all__ = [
     "API360Cat2",
     "API360Cat3",
     "API360Confidential",
+    "Event",
+    "EventRegistration",
+    "EventPayment",
+    "EventAttendance",
+    "EventCertificate",
+    "WorkshopDetails",
+    "TransactionDetails",
+    "FeeStructure",
+    "StudentFee",
+    "PaymentReceipt",
 ]
+
+from app.models.event import (
+    Event,
+    EventRegistration,
+    EventPayment,
+    EventAttendance,
+    EventCertificate,
+    WorkshopDetails,
+)
+from app.models.payment import (
+    TransactionDetails,
+    FeeStructure,
+    StudentFee,
+    PaymentReceipt,
+)
 

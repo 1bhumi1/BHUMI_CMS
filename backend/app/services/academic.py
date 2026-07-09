@@ -148,6 +148,18 @@ class AcademicService:
 
     # Subject CRUD
     async def create_subject(self, db: AsyncSession, obj_in: Dict[str, Any]) -> Subject:
+        # Construct subject_code if components are provided
+        category = obj_in.get("univ_category_code") or ""
+        prefix = obj_in.get("univ_subject_code_prefix") or ""
+        number = obj_in.get("univ_subject_code_number") or ""
+        suffix = obj_in.get("univ_subject_code_suffix") or ""
+        parts = [p for p in [category, prefix, number, suffix] if p]
+        if parts:
+            obj_in["subject_code"] = "-".join(parts)
+            
+        if not obj_in.get("subject_code"):
+            raise HTTPException(status_code=400, detail="Subject code is required")
+            
         existing = await subject_repo.get_by_subject_code(db, obj_in["subject_code"])
         if existing:
             raise HTTPException(status_code=400, detail="Subject code already exists")
@@ -157,6 +169,17 @@ class AcademicService:
         subject = await subject_repo.get(db, subject_id)
         if not subject:
             raise HTTPException(status_code=404, detail="Subject not found")
+            
+        # Rebuild subject_code if components are updated
+        category = obj_in.get("univ_category_code") if "univ_category_code" in obj_in else subject.univ_category_code
+        prefix = obj_in.get("univ_subject_code_prefix") if "univ_subject_code_prefix" in obj_in else subject.univ_subject_code_prefix
+        number = obj_in.get("univ_subject_code_number") if "univ_subject_code_number" in obj_in else subject.univ_subject_code_number
+        suffix = obj_in.get("univ_subject_code_suffix") if "univ_subject_code_suffix" in obj_in else subject.univ_subject_code_suffix
+        
+        parts = [p for p in [category, prefix, number, suffix] if p]
+        if parts:
+            obj_in["subject_code"] = "-".join(parts)
+            
         if "subject_code" in obj_in and obj_in["subject_code"] != subject.subject_code:
             existing = await subject_repo.get_by_subject_code(db, obj_in["subject_code"])
             if existing:

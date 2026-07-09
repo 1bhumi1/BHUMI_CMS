@@ -40,6 +40,21 @@ const Feedback360 = React.lazy(() => import('./pages/Feedback360'));
 const AddSubject = React.lazy(() => import('./pages/academics/AddSubject'));
 const AddSubjectCredit = React.lazy(() => import('./pages/academics/AddSubjectCredit'));
 
+// Event Management Pages
+const CreateEvent = React.lazy(() => import('./pages/academics/events/CreateEvent'));
+const ManageEvents = React.lazy(() => import('./pages/academics/events/ManageEvents'));
+const Registrations = React.lazy(() => import('./pages/academics/events/Registrations'));
+const Reports = React.lazy(() => import('./pages/academics/events/Reports'));
+const UserEvents = React.lazy(() => import('./pages/academics/events/UserEvents'));
+const PaymentSimulation = React.lazy(() => import('./pages/academics/events/PaymentSimulation'));
+const EventDetails = React.lazy(() => import('./pages/academics/events/EventDetails'));
+
+// Payment & Fees Pages
+const PendingPayments = React.lazy(() => import('./pages/academics/payments/PendingPayments'));
+const PaymentHistory = React.lazy(() => import('./pages/academics/payments/PaymentHistory'));
+const AccountantDashboard = React.lazy(() => import('./pages/academics/payments/AccountantDashboard'));
+const FeePaymentSimulation = React.lazy(() => import('./pages/academics/payments/FeePaymentSimulation'));
+
 const PageLoader = () => (
   <div className="flex-1 flex items-center justify-center min-h-[50vh]">
     <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -93,7 +108,23 @@ function App() {
                 <Route path="staff/academics/schema/add-subject" element={<Suspense fallback={<PageLoader />}><AddSubject /></Suspense>} />
                 <Route path="staff/academics/schema/add-subject-credit" element={<Suspense fallback={<PageLoader />}><AddSubjectCredit /></Suspense>} />
 
+                {/* Event Management Routes */}
+                <Route path="staff/academics/event-management/create" element={<Suspense fallback={<PageLoader />}><CreateEvent /></Suspense>} />
+                <Route path="staff/academics/event-management/manage" element={<Suspense fallback={<PageLoader />}><ManageEvents /></Suspense>} />
+                <Route path="staff/academics/event-management/registrations" element={<Suspense fallback={<PageLoader />}><Registrations /></Suspense>} />
+                <Route path="staff/academics/event-management/reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
+                <Route path="staff/academics/events" element={<Suspense fallback={<PageLoader />}><UserEvents /></Suspense>} />
+                <Route path="staff/academics/events/:id" element={<Suspense fallback={<PageLoader />}><EventDetails /></Suspense>} />
+                <Route path="staff/academics/events/payment-simulation" element={<Suspense fallback={<PageLoader />}><PaymentSimulation /></Suspense>} />
+                <Route path="staff/fees" element={<Suspense fallback={<PageLoader />}><AccountantDashboard /></Suspense>} />
+
                 <Route path="student" element={<Suspense fallback={<PageLoader />}><StudentDashboard /></Suspense>} />
+                <Route path="student/events" element={<Suspense fallback={<PageLoader />}><UserEvents /></Suspense>} />
+                <Route path="student/events/:id" element={<Suspense fallback={<PageLoader />}><EventDetails /></Suspense>} />
+                <Route path="student/events/payment-simulation" element={<Suspense fallback={<PageLoader />}><PaymentSimulation /></Suspense>} />
+                <Route path="student/fees/pending" element={<Suspense fallback={<PageLoader />}><PendingPayments /></Suspense>} />
+                <Route path="student/fees/history" element={<Suspense fallback={<PageLoader />}><PaymentHistory /></Suspense>} />
+                <Route path="student/fees/payment-simulation" element={<Suspense fallback={<PageLoader />}><FeePaymentSimulation /></Suspense>} />
               </Route>
             </Route>
           </Route>

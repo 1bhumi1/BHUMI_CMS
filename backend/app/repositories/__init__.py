@@ -31,6 +31,10 @@ from app.repositories.academic import (
     AcademicTermRepository,
     SubjectRepository,
     SubjectCreditRepository,
+    SubjectCategoryRepository,
+    SubjectCodeRepository,
+    SubjectClassificationRepository,
+    SubjectTypeRepository,
 )
 
 # Instantiate repository singletons for injection
@@ -63,6 +67,34 @@ academic_session_repo = AcademicSessionRepository()
 academic_term_repo = AcademicTermRepository()
 subject_repo = SubjectRepository()
 subject_credit_repo = SubjectCreditRepository()
+subject_category_repo = SubjectCategoryRepository()
+subject_code_repo = SubjectCodeRepository()
+subject_classification_repo = SubjectClassificationRepository()
+subject_type_repo = SubjectTypeRepository()
 
 from app.repositories.feedback import FeedbackRepository
 feedback_repo = FeedbackRepository()
+
+from app.repositories.event import (
+    EventRepository,
+    EventRegistrationRepository,
+    EventPaymentRepository,
+    EventAttendanceRepository,
+    EventCertificateRepository,
+)
+event_repo = EventRepository()
+event_registration_repo = EventRegistrationRepository()
+event_payment_repo = EventPaymentRepository()
+event_attendance_repo = EventAttendanceRepository()
+event_certificate_repo = EventCertificateRepository()
+
+from app.repositories.payment import (
+    TransactionDetailsRepository,
+    FeeStructureRepository,
+    StudentFeeRepository,
+    PaymentReceiptRepository,
+)
+txn_details_repo = TransactionDetailsRepository()
+fee_structure_repo = FeeStructureRepository()
+student_fee_repo = StudentFeeRepository()
+payment_receipt_repo = PaymentReceiptRepository()

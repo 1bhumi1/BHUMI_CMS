@@ -5,7 +5,7 @@ import {
   LogOut, LayoutDashboard, Users, BookOpen, Settings,
   Shield, FileText, ClipboardList, BookMarked,
   DollarSign, FileSpreadsheet, Key, GraduationCap, Library, UserCircle,
-  ChevronDown, ChevronRight, Briefcase, School, Building2, Calendar
+  ChevronDown, ChevronRight, Briefcase, School, Building2, Calendar, Plus
 } from 'lucide-react';
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
@@ -114,6 +114,9 @@ const Sidebar = () => {
           <>
             <SidebarItem to="/dashboard/staff" icon={LayoutDashboard} label="Dashboard" />
             {role !== 'Principal' && (
+              <SidebarItem to="/dashboard/staff/academics/events" icon={Calendar} label="Events & Workshops" />
+            )}
+            {role !== 'Principal' && (
               <SidebarItem to="/dashboard/staff/feedback" icon={ClipboardList} label="360 Degree Feedback" />
             )}
             {role === 'HOD' && (
@@ -123,15 +126,23 @@ const Sidebar = () => {
               </SidebarGroup>
             )}
             {role === 'HOD' && (
-              <SidebarGroup icon={BookOpen} label="Academics" activePrefixes={['/staff/academics/schema']}>
+              <SidebarGroup icon={BookOpen} label="Academics" activePrefixes={['/staff/academics/schema', '/staff/academics/event-management']}>
                 <SidebarGroup icon={Settings} label="Schema" activePrefixes={['/staff/academics/schema']}>
                   <SidebarItem to="/dashboard/staff/academics/schema/add-subject" icon={BookMarked} label="Add Subject" />
                   <SidebarItem to="/dashboard/staff/academics/schema/add-subject-credit" icon={DollarSign} label="Add Subject Credit" />
                 </SidebarGroup>
+                <SidebarGroup icon={Calendar} label="Event Management" activePrefixes={['/staff/academics/event-management']}>
+                  <SidebarItem to="/dashboard/staff/academics/event-management/create" icon={Plus} label="Create Event" />
+                  <SidebarItem to="/dashboard/staff/academics/event-management/manage" icon={Settings} label="Manage Events" />
+                  <SidebarItem to="/dashboard/staff/academics/event-management/registrations" icon={ClipboardList} label="Registrations" />
+                </SidebarGroup>
               </SidebarGroup>
             )}
             {role === 'Principal' && (
-              <SidebarItem to="/dashboard/staff/feedback?view=principal" icon={Shield} label="Principal Feedback Review" />
+              <>
+                <SidebarItem to="/dashboard/staff/feedback?view=principal" icon={Shield} label="Principal Feedback Review" />
+                <SidebarItem to="/dashboard/staff/academics/event-management/reports" icon={FileSpreadsheet} label="Event Reports" />
+              </>
             )}
             
             <SidebarGroup icon={Briefcase} label="Management" activePrefixes={['/staff/students', '/staff/faculty']}>
@@ -180,16 +191,20 @@ const Sidebar = () => {
           <>
             <SidebarItem to="/dashboard/student" icon={LayoutDashboard} label="Dashboard" />
             <SidebarItem to="/dashboard/student/profile" icon={UserCircle} label="Profile" />
-            <SidebarGroup icon={BookMarked} label="Academics" activePrefixes={['/student/attendance', '/student/timetable', '/student/results']}>
+            <SidebarGroup icon={BookMarked} label="Academics" activePrefixes={['/student/attendance', '/student/timetable', '/student/results', '/student/events']}>
               <SidebarItem to="/dashboard/student/attendance" icon={ClipboardList} label="Attendance" />
               <SidebarItem to="/dashboard/student/timetable" icon={BookOpen} label="Timetable" />
               <SidebarItem to="/dashboard/student/results" icon={FileText} label="Results" />
+              <SidebarItem to="/dashboard/student/events" icon={Calendar} label="Events & Workshops" />
             </SidebarGroup>
             
-            <SidebarGroup icon={FileSpreadsheet} label="Financials & Docs" activePrefixes={['/student/fees', '/student/documents']}>
-              <SidebarItem to="/dashboard/student/fees" icon={DollarSign} label="Fees" />
-              <SidebarItem to="/dashboard/student/documents" icon={FileSpreadsheet} label="Documents" />
+            <SidebarGroup icon={DollarSign} label="Fees" activePrefixes={['/student/fees']}>
+              <SidebarItem to="/dashboard/student/fees/pending" icon={ClipboardList} label="Pending Payments" />
+              <SidebarItem to="/dashboard/student/fees/history" icon={FileText} label="Payment History" />
+              <SidebarItem to="/dashboard/student/fees/history" icon={FileSpreadsheet} label="Receipts" />
             </SidebarGroup>
+            
+            <SidebarItem to="/dashboard/student/documents" icon={FileSpreadsheet} label="Documents" />
           </>
         )}
 

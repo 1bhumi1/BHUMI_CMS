@@ -14,6 +14,8 @@ from app.api.v1 import (
     notifications_router,
     chat_router,
     ai_router,
+    events_router,
+    payments_router,
 )
 
 api_router = APIRouter()
@@ -33,3 +35,5 @@ api_router.include_router(api360_router)
 api_router.include_router(notifications_router)
 api_router.include_router(chat_router)
 api_router.include_router(ai_router)
+api_router.include_router(events_router)
+api_router.include_router(payments_router)
