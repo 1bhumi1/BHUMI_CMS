@@ -122,7 +122,6 @@ const AddSubject = () => {
     return found ? found.id : null;
   };
 
-  // Determine available semesters based on the selected academic session
   const getAvailableSemesters = (session: string) => {
     if (!session) return [];
     if (session.includes('Jan-Jun') || session.includes('Jan-June')) {
@@ -131,7 +130,7 @@ const AddSubject = () => {
     if (session.includes('July-Dec')) {
       return ['1', '3', '5', '7'];
     }
-    return [];
+    return ['1', '2', '3', '4', '5', '6', '7', '8'];
   };
 
   const availableSemesters = getAvailableSemesters(watchAcademicSession);
