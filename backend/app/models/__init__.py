@@ -9,7 +9,10 @@ from app.models.academic import (
     AcademicSession,
     AcademicTerm,
     Subject,
-    SubjectCredit,
+    SubjectNewCredit,
+    SubjectCategory,
+    SubjectCode,
+    SubjectNew,
 )
 from app.models.student import (
     Student,
@@ -54,7 +57,10 @@ __all__ = [
     "AcademicSession",
     "AcademicTerm",
     "Subject",
-    "SubjectCredit",
+    "SubjectNewCredit",
+    "SubjectCategory",
+    "SubjectCode",
+    "SubjectNew",
     "Student",
     "StudentAddress",
     "StudentAdmission",

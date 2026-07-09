@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { AcademicSessionProvider } from './lib/AcademicSessionContext';
 
 // Eager load core components
 import Login from './pages/Login';
@@ -50,56 +51,58 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
-          
-          <Route element={<ProtectedRoute />}>
-            {/* 
-              RoleRouter automatically redirects /dashboard to the correct sub-dashboard
-              based on the user's role
-            */}
-            <Route path="/dashboard" element={<RoleRouter />}>
-              <Route element={<Layout />}>
-                <Route path="admin" element={<Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense>} />
-                <Route path="admin/staff" element={<Suspense fallback={<PageLoader />}><StaffManagement /></Suspense>} />
-                <Route path="admin/students" element={<Suspense fallback={<PageLoader />}><StudentManagement /></Suspense>} />
-                
-                {/* Academics nested routes */}
-                <Route path="admin/academics/institutes" element={<Suspense fallback={<PageLoader />}><InstitutesPage /></Suspense>} />
-                <Route path="admin/academics/departments" element={<Suspense fallback={<PageLoader />}><DepartmentsPage /></Suspense>} />
-                <Route path="admin/academics/programs" element={<Suspense fallback={<PageLoader />}><ProgramsPage /></Suspense>} />
-                <Route path="admin/academics/specializations" element={<Suspense fallback={<PageLoader />}><SpecializationsPage /></Suspense>} />
-                <Route path="admin/academics/academic-programs" element={<Suspense fallback={<PageLoader />}><AcademicProgramsPage /></Suspense>} />
-                <Route path="admin/academics/academic-sessions" element={<Suspense fallback={<PageLoader />}><AcademicSessionsPage /></Suspense>} />
-                <Route path="admin/academics/academic-terms" element={<Suspense fallback={<PageLoader />}><AcademicTermsPage /></Suspense>} />
+        <AcademicSessionProvider>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/unauthorized" element={<Unauthorized />} />
+            
+            <Route element={<ProtectedRoute />}>
+              {/* 
+                RoleRouter automatically redirects /dashboard to the correct sub-dashboard
+                based on the user's role
+              */}
+              <Route path="/dashboard" element={<RoleRouter />}>
+                <Route element={<Layout />}>
+                  <Route path="admin" element={<Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense>} />
+                  <Route path="admin/staff" element={<Suspense fallback={<PageLoader />}><StaffManagement /></Suspense>} />
+                  <Route path="admin/students" element={<Suspense fallback={<PageLoader />}><StudentManagement /></Suspense>} />
+                  
+                  {/* Academics nested routes */}
+                  <Route path="admin/academics/institutes" element={<Suspense fallback={<PageLoader />}><InstitutesPage /></Suspense>} />
+                  <Route path="admin/academics/departments" element={<Suspense fallback={<PageLoader />}><DepartmentsPage /></Suspense>} />
+                  <Route path="admin/academics/programs" element={<Suspense fallback={<PageLoader />}><ProgramsPage /></Suspense>} />
+                  <Route path="admin/academics/specializations" element={<Suspense fallback={<PageLoader />}><SpecializationsPage /></Suspense>} />
+                  <Route path="admin/academics/academic-programs" element={<Suspense fallback={<PageLoader />}><AcademicProgramsPage /></Suspense>} />
+                  <Route path="admin/academics/academic-sessions" element={<Suspense fallback={<PageLoader />}><AcademicSessionsPage /></Suspense>} />
+                  <Route path="admin/academics/academic-terms" element={<Suspense fallback={<PageLoader />}><AcademicTermsPage /></Suspense>} />
 
-                {/* Admin LMS Routes */}
-                <Route path="admin/leave/limits" element={<Suspense fallback={<PageLoader />}><LeaveLimits /></Suspense>} />
-                <Route path="admin/leave/reports" element={<Suspense fallback={<PageLoader />}><LeaveReports /></Suspense>} />
-                <Route path="admin/feedback" element={<Suspense fallback={<PageLoader />}><Feedback360 /></Suspense>} />
+                  {/* Admin LMS Routes */}
+                  <Route path="admin/leave/limits" element={<Suspense fallback={<PageLoader />}><LeaveLimits /></Suspense>} />
+                  <Route path="admin/leave/reports" element={<Suspense fallback={<PageLoader />}><LeaveReports /></Suspense>} />
+                  <Route path="admin/feedback" element={<Suspense fallback={<PageLoader />}><Feedback360 /></Suspense>} />
 
-                <Route path="staff" element={<Suspense fallback={<PageLoader />}><StaffDashboard /></Suspense>} />
-                
-                {/* Staff LMS Routes */}
-                <Route path="staff/leave" element={<Suspense fallback={<PageLoader />}><LeaveDashboard /></Suspense>} />
-                <Route path="staff/leave/my-leaves" element={<Suspense fallback={<PageLoader />}><MyLeaves /></Suspense>} />
-                <Route path="staff/leave/pending" element={<Suspense fallback={<PageLoader />}><PendingApproval /></Suspense>} />
-                <Route path="staff/leave/balance" element={<Suspense fallback={<PageLoader />}><LeaveBalance /></Suspense>} />
-                <Route path="staff/leave/faculty-assignment" element={<Suspense fallback={<PageLoader />}><FacultyAssignment /></Suspense>} />
-                <Route path="staff/reports" element={<Suspense fallback={<PageLoader />}><LeaveReports /></Suspense>} />
-                <Route path="staff/feedback" element={<Suspense fallback={<PageLoader />}><Feedback360 /></Suspense>} />
-                <Route path="staff/academics/schema/add-subject" element={<Suspense fallback={<PageLoader />}><AddSubject /></Suspense>} />
-                <Route path="staff/academics/schema/add-subject-credit" element={<Suspense fallback={<PageLoader />}><AddSubjectCredit /></Suspense>} />
+                  <Route path="staff" element={<Suspense fallback={<PageLoader />}><StaffDashboard /></Suspense>} />
+                  
+                  {/* Staff LMS Routes */}
+                  <Route path="staff/leave" element={<Suspense fallback={<PageLoader />}><LeaveDashboard /></Suspense>} />
+                  <Route path="staff/leave/my-leaves" element={<Suspense fallback={<PageLoader />}><MyLeaves /></Suspense>} />
+                  <Route path="staff/leave/pending" element={<Suspense fallback={<PageLoader />}><PendingApproval /></Suspense>} />
+                  <Route path="staff/leave/balance" element={<Suspense fallback={<PageLoader />}><LeaveBalance /></Suspense>} />
+                  <Route path="staff/leave/faculty-assignment" element={<Suspense fallback={<PageLoader />}><FacultyAssignment /></Suspense>} />
+                  <Route path="staff/reports" element={<Suspense fallback={<PageLoader />}><LeaveReports /></Suspense>} />
+                  <Route path="staff/feedback" element={<Suspense fallback={<PageLoader />}><Feedback360 /></Suspense>} />
+                  <Route path="staff/academics/schema/add-subject" element={<Suspense fallback={<PageLoader />}><AddSubject /></Suspense>} />
+                  <Route path="staff/academics/schema/add-subject-credit" element={<Suspense fallback={<PageLoader />}><AddSubjectCredit /></Suspense>} />
 
-                <Route path="student" element={<Suspense fallback={<PageLoader />}><StudentDashboard /></Suspense>} />
+                  <Route path="student" element={<Suspense fallback={<PageLoader />}><StudentDashboard /></Suspense>} />
+                </Route>
               </Route>
             </Route>
-          </Route>
-          
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+            
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </AcademicSessionProvider>
       </AuthProvider>
     </BrowserRouter>
   );

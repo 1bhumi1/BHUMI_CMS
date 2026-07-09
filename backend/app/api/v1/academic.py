@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_db_session
 from app.schemas.academic import (
@@ -26,10 +26,16 @@ from app.schemas.academic import (
     SubjectResponse,
     SubjectDetailResponse,
     SubjectUpdate,
-    SubjectCreditCreate,
-    SubjectCreditResponse,
-    SubjectCreditDetailResponse,
-    SubjectCreditUpdate,
+    SubjectNewCreditCreate,
+    SubjectNewCreditResponse,
+    SubjectNewCreditDetailResponse,
+    SubjectNewCreditUpdate,
+    SubjectCategoryResponse,
+    SubjectCodeResponse,
+    SubjectNewCreate,
+    SubjectNewResponse,
+    SubjectNewListResponse,
+    SubjectNewCreditBulkSave,
 )
 from app.schemas.response import StandardResponse
 from app.services.academic import academic_service
@@ -42,7 +48,10 @@ from app.repositories import (
     academic_session_repo,
     academic_term_repo,
     subject_repo,
-    subject_credit_repo,
+    subject_new_credit_repo,
+    subject_category_repo,
+    subject_code_repo,
+    subject_new_repo,
 )
 from app.permissions.evaluator import has_permission
 from app.dependencies.auth import get_current_user
@@ -100,7 +109,7 @@ async def create_department(
 @router.get("/departments", response_model=StandardResponse[List[DepartmentResponse]])
 async def list_departments(
     db: AsyncSession = Depends(get_db_session),
-    current_user: Login = Depends(has_permission("department.read"))
+    current_user: Login = Depends(get_current_user)
 ):
     items = await department_repo.get_multi(db)
     return StandardResponse(data=[DepartmentResponse.model_validate(i) for i in items])
@@ -293,77 +302,303 @@ async def verify_hod_role(
 
 
 # Subject Master (HOD Only)
-@router.post("/subjects", response_model=StandardResponse[SubjectResponse], status_code=status.HTTP_201_CREATED)
+@router.post("/subjects", response_model=StandardResponse[SubjectNewResponse], status_code=status.HTTP_201_CREATED)
 async def create_subject(
-    payload: SubjectCreate,
+    payload: SubjectNewCreate,
     db: AsyncSession = Depends(get_db_session),
     current_user: Login = Depends(verify_hod_role)
 ):
-    sub = await academic_service.create_subject(db, payload.model_dump())
-    return StandardResponse(message="Subject created successfully", data=SubjectResponse.model_validate(sub))
+    from app.models.academic import SubjectNew, Subject
+    data = payload.model_dump()
+    
+    # Apply defaults for non-nullable DB fields to avoid integrity errors
+    if data.get("scheme_id") is None:
+        data["scheme_id"] = 1
+    if data.get("department") is None:
+        data["department"] = 0
+    if data.get("specialization") is None:
+        data["specialization"] = 0
+    if data.get("course") is None:
+        data["course"] = "B.Tech."
+    if data.get("user_stamp") is None:
+        data["user_stamp"] = current_user.id or 1
+    if data.get("ip") is None:
+        data["ip"] = "127.0.0.1"
+        
+    sub = SubjectNew(**data)
+    db.add(sub)
+    await db.flush()
+    
+    # Sync to legacy subject table for subject_credit foreign key constraint
+    legacy_sub = Subject(
+        id=sub.id,
+        subject_code=sub.university_sub_code or sub.clg_sub_code or f"TEMP-{sub.id}",
+        subject_name=sub.subject_name or f"Subject {sub.id}",
+        department_id=sub.department if (sub.department and sub.department > 0) else None,
+        active=sub.active or 1
+    )
+    db.add(legacy_sub)
+    await db.flush()
+    
+    await db.refresh(sub)
+    return StandardResponse(message="Subject created successfully", data=SubjectNewResponse.model_validate(sub))
 
-@router.get("/subjects", response_model=StandardResponse[List[SubjectDetailResponse]])
+
+@router.get("/subjects", response_model=StandardResponse[SubjectNewListResponse])
 async def list_subjects(
+    skip: int = 0,
+    limit: int = 10,
+    search: str | None = None,
+    semester: int | None = None,
+    academic_session: int | None = None,
+    department: int | None = None,
     db: AsyncSession = Depends(get_db_session),
     current_user: Login = Depends(verify_hod_role)
 ):
-    items = await subject_repo.get_multi_detailed(db)
-    return StandardResponse(data=[SubjectDetailResponse.model_validate(i) for i in items])
+    items, total = await subject_new_repo.get_multi_filtered(
+        db, skip=skip, limit=limit, search=search, semester=semester, session_id=academic_session, department_id=department
+    )
+    return StandardResponse(
+        data=SubjectNewListResponse(
+            items=[SubjectNewResponse.model_validate(i) for i in items],
+            total=total,
+            page=(skip // limit) + 1,
+            size=limit
+        )
+    )
 
-@router.put("/subjects/{id}", response_model=StandardResponse[SubjectResponse])
+
+@router.put("/subjects/{id}", response_model=StandardResponse[SubjectNewResponse])
 async def update_subject(
     id: int,
-    payload: SubjectUpdate,
+    payload: SubjectNewCreate,
     db: AsyncSession = Depends(get_db_session),
     current_user: Login = Depends(verify_hod_role)
 ):
-    sub = await academic_service.update_subject(db, id, payload.model_dump(exclude_unset=True))
-    return StandardResponse(message="Subject updated successfully", data=SubjectResponse.model_validate(sub))
+    from app.models.academic import Subject
+    sub = await subject_new_repo.get(db, id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subject not found")
+        
+    data = payload.model_dump(exclude_unset=True)
+    
+    # Apply defaults for non-nullable DB fields
+    if data.get("scheme_id") is None and getattr(sub, "scheme_id", None) is None:
+        data["scheme_id"] = 1
+    if data.get("department") is None and getattr(sub, "department", None) is None:
+        data["department"] = 0
+    if data.get("specialization") is None and getattr(sub, "specialization", None) is None:
+        data["specialization"] = 0
+    if data.get("course") is None and getattr(sub, "course", None) is None:
+        data["course"] = "B.Tech."
+    if data.get("user_stamp") is None:
+        data["user_stamp"] = current_user.id or 1
+    if data.get("ip") is None:
+        data["ip"] = "127.0.0.1"
+        
+    for k, v in data.items():
+        setattr(sub, k, v)
+        
+    db.add(sub)
+    await db.flush()
+    
+    # Update legacy subject to maintain consistency
+    from sqlalchemy import select
+    stmt = select(Subject).where(Subject.id == sub.id)
+    res = await db.execute(stmt)
+    legacy_sub = res.scalar()
+    if legacy_sub:
+        legacy_sub.subject_code = sub.university_sub_code or sub.clg_sub_code or f"TEMP-{sub.id}"
+        legacy_sub.subject_name = sub.subject_name or f"Subject {sub.id}"
+        legacy_sub.department_id = sub.department if (sub.department and sub.department > 0) else None
+        legacy_sub.active = sub.active or 1
+        db.add(legacy_sub)
+    else:
+        legacy_sub = Subject(
+            id=sub.id,
+            subject_code=sub.university_sub_code or sub.clg_sub_code or f"TEMP-{sub.id}",
+            subject_name=sub.subject_name or f"Subject {sub.id}",
+            department_id=sub.department if (sub.department and sub.department > 0) else None,
+            active=sub.active or 1
+        )
+        db.add(legacy_sub)
+    await db.flush()
+    
+    await db.refresh(sub)
+    return StandardResponse(message="Subject updated successfully", data=SubjectNewResponse.model_validate(sub))
 
-@router.delete("/subjects/{id}", response_model=StandardResponse[SubjectResponse])
+
+@router.delete("/subjects/{id}", response_model=StandardResponse[SubjectNewResponse])
 async def delete_subject(
     id: int,
     db: AsyncSession = Depends(get_db_session),
     current_user: Login = Depends(verify_hod_role)
 ):
-    sub = await academic_service.delete_subject(db, id)
-    return StandardResponse(message="Subject deleted successfully", data=SubjectResponse.model_validate(sub))
+    from app.models.academic import Subject
+    sub = await subject_new_repo.get(db, id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subject not found")
+        
+    # Delete from legacy subject to avoid orphans/FK constraint blocks
+    from sqlalchemy import select
+    stmt = select(Subject).where(Subject.id == sub.id)
+    res = await db.execute(stmt)
+    legacy_sub = res.scalar()
+    if legacy_sub:
+        await db.delete(legacy_sub)
+        
+    await db.delete(sub)
+    await db.flush()
+    return StandardResponse(message="Subject deleted successfully", data=SubjectNewResponse.model_validate(sub))
 
 
-# Subject Credit Master (HOD Only)
-@router.post("/subject-credits", response_model=StandardResponse[SubjectCreditResponse], status_code=status.HTTP_201_CREATED)
-async def create_subject_credit(
-    payload: SubjectCreditCreate,
+# Subject Credit Config Endpoints (HOD Only)
+@router.post("/subject-credits/bulk", response_model=StandardResponse[str])
+async def save_bulk_subject_credits(
+    payload: SubjectNewCreditBulkSave,
     db: AsyncSession = Depends(get_db_session),
     current_user: Login = Depends(verify_hod_role)
 ):
-    cred = await academic_service.create_subject_credit(db, payload.model_dump())
-    return StandardResponse(message="Subject credit added successfully", data=SubjectCreditResponse.model_validate(cred))
+    from app.models.academic import SubjectNewCredit, SubjectNew
+    from sqlalchemy import select
+    
+    # In-memory dictionary to track records cached/modified during this transaction
+    # to prevent duplicate creation in database. Key: (college_sub_code, academic_session, semester)
+    created_in_session = {}
+    
+    for cfg in payload.configs:
+        sub_stmt = select(SubjectNew).where(
+            SubjectNew.clg_sub_code == cfg.college_sub_code,
+            SubjectNew.academic_session == payload.academic_session,
+            SubjectNew.semester == payload.semester
+        )
+        sub_res = await db.execute(sub_stmt)
+        sub = sub_res.scalar()
+        sub_type = sub.type if sub else "Theory"
+        
+        # If frontend did not specify a type, fallback to subject type
+        update_type = cfg.type if cfg.type else sub_type
+        
+        # Use key combination to check if we already retrieved or created it in memory
+        key = (cfg.college_sub_code, payload.academic_session, payload.semester)
+        
+        if key in created_in_session:
+            cred = created_in_session[key]
+        else:
+            stmt = select(SubjectNewCredit).where(
+                SubjectNewCredit.college_sub_code == cfg.college_sub_code,
+                SubjectNewCredit.academic_session == payload.academic_session,
+                SubjectNewCredit.semester == payload.semester
+            )
+            res = await db.execute(stmt)
+            cred = res.scalar()
+            if cred:
+                created_in_session[key] = cred
+        
+        if cred:
+            # Update existing record
+            cred.type = sub_type
+            cred.credit = int(cfg.totalCredit)
+            cred.end_sem = int(cfg.endSem)
+            
+            if update_type == 'Theory':
+                cred.mst = int(cfg.mst) if cfg.mst is not None else 0
+                cred.assignment = int(cfg.assignment) if cfg.assignment is not None else 0
+                # Preserve: labwork_sessional (do nothing)
+            elif update_type == 'Practical':
+                cred.labwork_sessional = int(cfg.labwork_sessional) if cfg.labwork_sessional is not None else 0
+                # Preserve: mst, assignment (do nothing)
+            else:
+                if cfg.mst is not None:
+                    cred.mst = int(cfg.mst)
+                if cfg.assignment is not None:
+                    cred.assignment = int(cfg.assignment)
+                if cfg.labwork_sessional is not None:
+                    cred.labwork_sessional = int(cfg.labwork_sessional)
+            db.add(cred)
+        else:
+            # Create new record
+            mst_val = int(cfg.mst) if (cfg.mst is not None and update_type != 'Practical') else 0
+            asg_val = int(cfg.assignment) if (cfg.assignment is not None and update_type != 'Practical') else 0
+            lab_val = int(cfg.labwork_sessional) if (cfg.labwork_sessional is not None and update_type != 'Theory') else 0
+            
+            new_cred = SubjectNewCredit(
+                college_sub_code=cfg.college_sub_code,
+                type=sub_type,
+                credit=int(cfg.totalCredit),
+                end_sem=int(cfg.endSem),
+                mst=mst_val,
+                assignment=asg_val,
+                labwork_sessional=lab_val,
+                academic_session=payload.academic_session,
+                semester=payload.semester,
+                course=sub.course if (sub and sub.course) else "B.Tech.",
+                ip="127.0.0.1",
+                remark=""
+            )
+            db.add(new_cred)
+            created_in_session[key] = new_cred
+            
+    await db.flush()
+    return StandardResponse(message="Subject credits saved successfully", data="SUCCESS")
 
-@router.get("/subject-credits", response_model=StandardResponse[List[SubjectCreditDetailResponse]])
-async def list_subject_credits(
+
+@router.get("/subject-credits", response_model=StandardResponse[List[dict]])
+async def list_subject_credits_new(
+    semester: int,
+    academic_session: int,
     db: AsyncSession = Depends(get_db_session),
     current_user: Login = Depends(verify_hod_role)
 ):
-    items = await subject_credit_repo.get_multi_detailed(db)
-    return StandardResponse(data=[SubjectCreditDetailResponse.model_validate(i) for i in items])
+    from app.models.academic import SubjectNew, SubjectNewCredit
+    from sqlalchemy import select
+    
+    stmt = select(SubjectNew).where(
+        SubjectNew.semester == semester,
+        SubjectNew.academic_session == academic_session
+    )
+    res = await db.execute(stmt)
+    subjects = res.scalars().all()
+    
+    data = []
+    for sub in subjects:
+        c_stmt = select(SubjectNewCredit).where(
+            SubjectNewCredit.college_sub_code == sub.clg_sub_code,
+            SubjectNewCredit.academic_session == academic_session,
+            SubjectNewCredit.semester == semester
+        )
+        c_res = await db.execute(c_stmt)
+        cred = c_res.scalar()
+        
+        data.append({
+            "college_sub_code": sub.clg_sub_code or "",
+            "subject_name": sub.subject_name or "",
+            "type": sub.type or "Theory",
+            "totalCredit": cred.credit if cred else 0,
+            "endSem": cred.end_sem if cred else 0,
+            "mst": cred.mst if cred else 0,
+            "assignment": cred.assignment if cred else 0,
+            "labwork_sessional": cred.labwork_sessional if cred else 0
+        })
+        
+    return StandardResponse(data=data)
 
-@router.put("/subject-credits/{id}", response_model=StandardResponse[SubjectCreditResponse])
-async def update_subject_credit(
-    id: int,
-    payload: SubjectCreditUpdate,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: Login = Depends(verify_hod_role)
-):
-    cred = await academic_service.update_subject_credit(db, id, payload.model_dump(exclude_unset=True))
-    return StandardResponse(message="Subject credit updated successfully", data=SubjectCreditResponse.model_validate(cred))
 
-@router.delete("/subject-credits/{id}", response_model=StandardResponse[SubjectCreditResponse])
-async def delete_subject_credit(
-    id: int,
+# Subject Categories and Codes (Authenticated Users)
+@router.get("/subject-categories", response_model=StandardResponse[List[SubjectCategoryResponse]])
+async def list_subject_categories(
     db: AsyncSession = Depends(get_db_session),
-    current_user: Login = Depends(verify_hod_role)
+    current_user: Login = Depends(get_current_user)
 ):
-    cred = await academic_service.delete_subject_credit(db, id)
-    return StandardResponse(message="Subject credit deleted successfully", data=SubjectCreditResponse.model_validate(cred))
+    items = await subject_category_repo.get_multi(db)
+    return StandardResponse(data=[SubjectCategoryResponse.model_validate(i) for i in items])
+
+
+@router.get("/subject-codes", response_model=StandardResponse[List[SubjectCodeResponse]])
+async def list_subject_codes(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Login = Depends(get_current_user)
+):
+    items = await subject_code_repo.get_multi(db)
+    return StandardResponse(data=[SubjectCodeResponse.model_validate(i) for i in items])
 

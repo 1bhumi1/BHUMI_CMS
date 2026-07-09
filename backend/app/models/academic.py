@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Optional, List
-from sqlalchemy import Integer, String, Boolean, Date, ForeignKey
+from sqlalchemy import Integer, String, Boolean, Date, ForeignKey, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
@@ -108,20 +108,67 @@ class Subject(Base):
 
     # Relationships
     department = relationship("Department")
-    credits = relationship("SubjectCredit", back_populates="subject", cascade="all, delete-orphan")
 
 
-class SubjectCredit(Base):
-    __tablename__ = "subject_credit"
+from sqlalchemy import TIMESTAMP, func
+from datetime import datetime
+
+class SubjectNew(Base):
+    __tablename__ = "subject_new"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    subject_id: Mapped[int] = mapped_column(Integer, ForeignKey("subject.id", ondelete="CASCADE"), nullable=False)
-    scheme_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    lecture_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    tutorial_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    practical_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    total_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    semester: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    academic_session: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    clg_sub_code: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    university_sub_code: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    subject_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    priority: Mapped[Optional[str]] = mapped_column(String(43), nullable=True)
+    scheme_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    department: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    specialization: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    course: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    active: Mapped[Optional[int]] = mapped_column(Integer, default=1, nullable=True)
+    elective: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    user_stamp: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    time_stamp: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, server_default=func.current_timestamp(), nullable=True)
+    ip: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    remark: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    # Relationships
-    subject = relationship("Subject", back_populates="credits")
+
+class SubjectNewCredit(Base):
+    __tablename__ = "subject_new_credits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    college_sub_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    type: Mapped[str] = mapped_column(String(50), nullable=False)
+    credit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    end_sem: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    mst: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    assignment: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    labwork_sessional: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    academic_session: Mapped[int] = mapped_column(Integer, nullable=False)
+    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    course: Mapped[str] = mapped_column(String(20), default="B.Tech.", nullable=False)
+    entry_time: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.current_timestamp(), nullable=False)
+    ip: Mapped[str] = mapped_column(String(100), default="127.0.0.1", nullable=False)
+    remark: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+
+
+class SubjectCategory(Base):
+    __tablename__ = "subject_category"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    category: Mapped[str] = mapped_column(String(255), nullable=False)
+    category_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    active: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class SubjectCode(Base):
+    __tablename__ = "subject_code"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sub_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    hod_computer_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    department: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 

@@ -182,37 +182,133 @@ class SubjectUpdate(BaseModel):
     active: Optional[int] = None
 
 
-# SubjectCredit Schemas
-class SubjectCreditCreate(BaseModel):
-    subject_id: int
-    scheme_name: str = Field(..., max_length=100)
-    lecture_credits: int = Field(default=0)
-    tutorial_credits: int = Field(default=0)
-    practical_credits: int = Field(default=0)
-    total_credits: int = Field(default=0)
+# SubjectNewCredit Schemas
+class SubjectNewCreditCreate(BaseModel):
+    college_sub_code: str = Field(..., max_length=32)
+    type: str = Field(..., max_length=50)
+    credit: int = Field(default=0)
+    end_sem: int = Field(default=0)
+    mst: int = Field(default=0)
+    assignment: int = Field(default=0)
+    labwork_sessional: int = Field(default=0)
+    academic_session: int
+    semester: int
+    course: Optional[str] = "B.Tech."
+    remark: Optional[str] = ""
 
-class SubjectCreditResponse(BaseModel):
+class SubjectNewCreditResponse(BaseModel):
     id: int
-    subject_id: int
-    scheme_name: str
-    lecture_credits: int
-    tutorial_credits: int
-    practical_credits: int
-    total_credits: int
+    college_sub_code: str
+    type: str
+    credit: int
+    end_sem: int
+    mst: int
+    assignment: int
+    labwork_sessional: int
+    academic_session: int
+    semester: int
+    course: str
+    remark: str
 
     class Config:
         from_attributes = True
 
-class SubjectCreditDetailResponse(SubjectCreditResponse):
-    subject: Optional[SubjectResponse] = None
+class SubjectNewCreditDetailResponse(SubjectNewCreditResponse):
+    pass
 
-class SubjectCreditUpdate(BaseModel):
-    subject_id: Optional[int] = None
-    scheme_name: Optional[str] = Field(None, max_length=100)
-    lecture_credits: Optional[int] = None
-    tutorial_credits: Optional[int] = None
-    practical_credits: Optional[int] = None
-    total_credits: Optional[int] = None
+class SubjectNewCreditUpdate(BaseModel):
+    college_sub_code: Optional[str] = None
+    type: Optional[str] = None
+    credit: Optional[int] = None
+    end_sem: Optional[int] = None
+    mst: Optional[int] = None
+    assignment: Optional[int] = None
+    labwork_sessional: Optional[int] = None
+    academic_session: Optional[int] = None
+    semester: Optional[int] = None
+    course: Optional[str] = None
+    remark: Optional[str] = None
+
+
+class SubjectCategoryResponse(BaseModel):
+    id: int
+    category: str
+    category_code: str
+    active: int
+
+    class Config:
+        from_attributes = True
+
+
+class SubjectCodeResponse(BaseModel):
+    id: int
+    sub_code: str
+    hod_computer_code: Optional[int] = None
+    department: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SubjectNewCreate(BaseModel):
+    semester: int
+    academic_session: int
+    clg_sub_code: str
+    university_sub_code: str
+    subject_name: str
+    type: str
+    priority: Optional[str] = None
+    scheme_id: Optional[int] = None
+    department: Optional[int] = None
+    specialization: Optional[int] = None
+    course: Optional[str] = None
+    active: int = 1
+    elective: int = 0
+    remark: Optional[str] = None
+
+
+class SubjectNewResponse(BaseModel):
+    id: int
+    semester: int
+    academic_session: int
+    clg_sub_code: str
+    university_sub_code: str
+    subject_name: str
+    type: str
+    priority: Optional[str] = None
+    scheme_id: Optional[int] = None
+    department: Optional[int] = None
+    specialization: Optional[int] = None
+    course: Optional[str] = None
+    active: int
+    elective: int
+    remark: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SubjectNewListResponse(BaseModel):
+    items: List[SubjectNewResponse]
+    total: int
+    page: int
+    size: int
+
+
+class SubjectNewCreditConfigSave(BaseModel):
+    college_sub_code: str
+    totalCredit: int
+    endSem: int
+    mst: Optional[int] = 0
+    assignment: Optional[int] = 0
+    labwork_sessional: Optional[int] = 0
+    type: Optional[str] = None
+
+
+class SubjectNewCreditBulkSave(BaseModel):
+    semester: int
+    academic_session: int
+    configs: List[SubjectNewCreditConfigSave]
 
 
 

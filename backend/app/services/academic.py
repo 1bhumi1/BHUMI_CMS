@@ -10,7 +10,7 @@ from app.repositories import (
     academic_session_repo,
     academic_term_repo,
     subject_repo,
-    subject_credit_repo,
+    subject_new_credit_repo,
 )
 from app.models.academic import (
     Institute,
@@ -21,7 +21,7 @@ from app.models.academic import (
     AcademicSession,
     AcademicTerm,
     Subject,
-    SubjectCredit,
+    SubjectNewCredit,
 )
 
 class AcademicService:
@@ -168,30 +168,6 @@ class AcademicService:
         if not subject:
             raise HTTPException(status_code=404, detail="Subject not found")
         return await subject_repo.remove(db, id=subject_id)
-
-    # Subject Credit CRUD
-    async def create_subject_credit(self, db: AsyncSession, obj_in: Dict[str, Any]) -> SubjectCredit:
-        subject = await subject_repo.get(db, obj_in["subject_id"])
-        if not subject:
-            raise HTTPException(status_code=400, detail="Subject not found")
-        return await subject_credit_repo.create(db, obj_in=obj_in)
-
-    async def update_subject_credit(self, db: AsyncSession, credit_id: int, obj_in: Dict[str, Any]) -> SubjectCredit:
-        credit = await subject_credit_repo.get(db, credit_id)
-        if not credit:
-            raise HTTPException(status_code=404, detail="Subject credit record not found")
-        if "subject_id" in obj_in:
-            subject = await subject_repo.get(db, obj_in["subject_id"])
-            if not subject:
-                raise HTTPException(status_code=400, detail="Subject not found")
-        return await subject_credit_repo.update(db, db_obj=credit, obj_in=obj_in)
-
-    async def delete_subject_credit(self, db: AsyncSession, credit_id: int) -> SubjectCredit:
-        credit = await subject_credit_repo.get(db, credit_id)
-        if not credit:
-            raise HTTPException(status_code=404, detail="Subject credit record not found")
-        return await subject_credit_repo.remove(db, id=credit_id)
-
 
 
 academic_service = AcademicService()
