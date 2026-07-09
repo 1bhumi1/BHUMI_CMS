@@ -140,7 +140,10 @@ const Sidebar = () => {
             )}
             {role === 'Principal' && (
               <>
-                <SidebarItem to="/dashboard/staff/feedback?view=principal" icon={Shield} label="Principal Feedback Review" />
+                <SidebarGroup icon={Shield} label="Principal Feedback Review" activePrefixes={['/staff/feedback']}>
+                  <SidebarItem to="/dashboard/staff/feedback?view=principal" icon={ClipboardList} label="HOD Review" />
+                  <SidebarItem to="/dashboard/staff/feedback?view=staff-review" icon={Users} label="Full Details" />
+                </SidebarGroup>
                 <SidebarItem to="/dashboard/staff/academics/event-management/reports" icon={FileSpreadsheet} label="Event Reports" />
               </>
             )}

@@ -786,22 +786,15 @@ async def save_confidential_assessment(
     ua = request.headers.get("user-agent", "unknown")
 
     role_name = await rbac_service.get_main_role_name(db, current_user)
-    is_hod = "hod" in role_name.lower()
+    role_lower = role_name.lower()
+    is_hod = "hod" in role_lower
+    is_principal = role_lower == "principal"
+    is_admin = role_lower == "admin"
     
-    if not is_hod:
+    if not (is_hod or is_principal or is_admin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only HODs can fill confidential assessments"
-        )
-
-    # Get HOD department
-    dept_stmt = select(StaffRole.department_id).where(StaffRole.staff_id == current_user.staff_id)
-    dept_res = await db.execute(dept_stmt)
-    hod_dept_id = dept_res.scalar()
-    if not hod_dept_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="HOD department not configured"
+            detail="Only HODs, Principal, and Admin can fill confidential assessments"
         )
 
     # Fetch master record
@@ -818,18 +811,31 @@ async def save_confidential_assessment(
             detail="Faculty feedback record not found"
         )
 
-    # Check HOD department matches faculty department
+    # Resolve target department ID
     from app.models.staff import StaffDetails
-    check_stmt = select(StaffDetails.dept_id).join(Staff, Staff.id == StaffDetails.staff_id).where(Staff.computer_code == int(info_rec.faculty_computer_code))
-    check_res = await db.execute(check_stmt)
-    owner_dept_id = check_res.scalar()
-    if owner_dept_id != hod_dept_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only evaluate faculty in your own department"
-        )
+    dept_stmt = select(StaffDetails.dept_id).join(Staff, Staff.id == StaffDetails.staff_id).where(Staff.computer_code == int(info_rec.faculty_computer_code))
+    dept_res = await db.execute(dept_stmt)
+    owner_dept_id = dept_res.scalar()
+    hod_dept_id = owner_dept_id or 1
 
-    # HOD cannot evaluate themselves
+    if is_hod and not is_admin:
+        # Get HOD department
+        hod_dept_stmt = select(StaffRole.department_id).where(StaffRole.staff_id == current_user.staff_id)
+        hod_dept_res = await db.execute(hod_dept_stmt)
+        actual_hod_dept_id = hod_dept_res.scalar()
+        if not actual_hod_dept_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="HOD department not configured"
+            )
+        if owner_dept_id != actual_hod_dept_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only evaluate faculty in your own department"
+            )
+        hod_dept_id = actual_hod_dept_id
+
+    # Evaluator cannot evaluate themselves
     if int(info_rec.faculty_computer_code) == int(current_user.computer_code):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -846,10 +852,10 @@ async def save_confidential_assessment(
         except Exception:
             pass
 
-    if status_str not in ["Submitted to HOD", "Under HOD Review", "CR Draft", "Confidential Report Submitted"]:
+    if status_str not in ["Draft", "Submitted to HOD", "Under HOD Review", "Submitted to Principal", "CR Draft", "Confidential Report Submitted", "HOD Rejected", "Principal Rejected"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Cannot submit/save API Credit because appraisal status is '{status_str}' (must be 'Submitted to HOD', 'Under HOD Review', 'CR Draft', or 'Confidential Report Submitted')"
+            detail=f"Cannot submit/save API Credit because appraisal status is '{status_str}' (must be 'Draft', 'Submitted to HOD', 'Under HOD Review', 'Submitted to Principal', 'CR Draft', 'Confidential Report Submitted', 'HOD Rejected', or 'Principal Rejected')"
         )
 
     # Validate parameters if status is Submitted

@@ -8,7 +8,7 @@ import {
   Loader2, X, Check, AlertCircle, Eye, ChevronDown, ChevronUp,
   Save, BookOpen, Info, Users, School, HeartHandshake, Star,
   Printer, ArrowRight, ArrowLeft, Plus, Trash2, ShieldCheck, Lock,
-  FileSpreadsheet, ClipboardList, CheckCircle2, AlertOctagon, HelpCircle
+  FileSpreadsheet, ClipboardList, CheckCircle2, AlertOctagon, HelpCircle, FileText
 } from 'lucide-react';
 
 // ─── Constants & Metadata ────────────────────────────────────────
@@ -219,8 +219,8 @@ export default function Feedback360() {
   });
 
   const handleOpenConfidentialAssessment = async (item: any) => {
-    if (role !== 'HOD' && !isAdmin()) {
-      setToast({ msg: "Access Denied: Only HOD can access Confidential Reports.", type: 'error' });
+    if (role !== 'HOD' && role !== 'Principal' && !isAdmin()) {
+      setToast({ msg: "Access Denied: Only HOD and Principal can access Confidential Reports.", type: 'error' });
       return;
     }
     setLoading(true);
@@ -532,7 +532,13 @@ export default function Feedback360() {
           api.get('/academic-sessions/current')
         ]);
         if (sessionRes.data?.success) {
-          setSessionsDropdown(sessionRes.data.data.sessions || []);
+          const allSessions = sessionRes.data.data.sessions || [];
+          const filteredSessions = allSessions.filter((s: any) => {
+            if (!s.name) return false;
+            const startYear = parseInt(s.name.substring(0, 4));
+            return startYear >= 2025 && startYear <= 2027;
+          });
+          setSessionsDropdown(filteredSessions);
         }
 
         let sessionToUse = null;
@@ -559,10 +565,14 @@ export default function Feedback360() {
           setSelectedRecordId(null);
           setViewMode('review');
           await loadHODDashboard();
-        } else if (isStaffReviewView && (isUserHOD || isAdmin())) {
+        } else if (isStaffReviewView && (isUserHOD || isAdmin() || role === 'Principal')) {
           setSelectedRecordId(null);
           setViewMode('staff-review');
-          await loadHODDashboard();
+          if (role === 'Principal') {
+            await loadPrincipalDashboard();
+          } else {
+            await loadHODDashboard();
+          }
         } else if (isPrincipalView && (role === 'Principal' || isAdmin())) {
           setSelectedRecordId(null);
           setViewMode('principal');
@@ -860,9 +870,9 @@ export default function Feedback360() {
   };
 
   // Submit Actions
-  const handleTeacherSubmitAction = async (action: 'draft' | 'submit') => {
+  const handleTeacherSubmitAction = async (action: 'draft' | 'submit' | 'submit-to-principal') => {
     if (!selectedRecordId) return;
-    const isSubmittingFinal = action === 'submit';
+    const isSubmittingFinal = action === 'submit' || action === 'submit-to-principal';
 
     if (isSubmittingFinal) {
       if (!form.cat1i || form.cat1i.filter(x => x.sno !== -999).length === 0) {
@@ -877,9 +887,9 @@ export default function Feedback360() {
     setSubmitting(true);
     const nowStr = new Date().toISOString();
 
-    // HOD submits automatically move to "Forwarded to Principal". Normal teachers move to "Under HOD Review".
+    // HOD submits their own appraisal to Principal. HOD evaluating staff forwards to Principal. Normal teachers move to Under HOD Review.
     const newStatus = isSubmittingFinal
-      ? (role === 'HOD' ? 'Forwarded to Principal' : 'Under HOD Review')
+      ? (action === 'submit-to-principal' ? 'Submitted to Principal' : (role === 'HOD' ? 'Forwarded to Principal' : 'Under HOD Review'))
       : 'Draft';
     const newSubmittedAt = isSubmittingFinal ? nowStr : submittedAt;
 
@@ -1198,6 +1208,8 @@ export default function Feedback360() {
         return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-orange-50 text-orange-700 border border-orange-200">🟠 Under HOD Review</span>;
       case 'Forwarded to Principal':
         return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-purple-50 text-purple-700 border border-purple-200">🟣 Forwarded to Principal</span>;
+      case 'Submitted to Principal':
+        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-200">🔵 Submitted to Principal</span>;
       case 'Confidential Report Submitted':
         return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-teal-50 text-teal-700 border border-teal-200">🟢 Confidential Report Submitted</span>;
       case 'Submitted':
@@ -1346,7 +1358,11 @@ export default function Feedback360() {
   };
 
   const getFilteredDeptList = () => {
-    return departmentList.filter(item => {
+    const listToFilter = role === 'Principal' ? principalList : departmentList;
+    return listToFilter.filter(item => {
+      if (role === 'Principal' && item.designation !== 'HOD') {
+        return false;
+      }
       const metaRow = item.cat1i?.find((x: any) => x.sno === -999);
       let rowStatus = 'Draft';
       if (metaRow && metaRow.ccnc) {
@@ -1356,6 +1372,9 @@ export default function Feedback360() {
       } else {
         if (item.hod_approval) rowStatus = 'Approved';
         else if (item.submited) rowStatus = 'Submitted';
+      }
+      if (role === 'Principal') {
+        return ['Submitted to Principal', 'CR Draft', 'Confidential Report Submitted', 'Forwarded to Principal', 'Principal Approved', 'Principal Rejected'].includes(rowStatus);
       }
       return rowStatus !== 'Draft' && rowStatus !== 'HOD Rejected';
     });
@@ -1463,20 +1482,22 @@ export default function Feedback360() {
       `}</style>
 
       {/* ─── PRINT LOGO PANEL (HIDDEN IN SCREEN VIEW) ────────────────────── */}
-      <div id="print-header" className="hidden print:flex flex-col items-center text-center pb-6 border-b-2 border-slate-300">
-        <h1 className="text-2xl font-bold uppercase tracking-wider text-slate-800">IPS Academy</h1>
-        <h2 className="text-sm font-semibold uppercase text-slate-500">Institute of Engineering & Science, Indore (M.P.)</h2>
-        <h3 className="text-md font-bold mt-2 text-indigo-700">360 Degree Feedback Scorecard</h3>
+      {printType === 'none' && (
+        <div id="print-header" className="hidden print:flex flex-col items-center text-center pb-6 border-b-2 border-slate-300">
+          <h1 className="text-2xl font-bold uppercase tracking-wider text-slate-800">IPS Academy</h1>
+          <h2 className="text-sm font-semibold uppercase text-slate-500">Institute of Engineering & Science, Indore (M.P.)</h2>
+          <h3 className="text-md font-bold mt-2 text-indigo-700">360 Degree Feedback Scorecard</h3>
 
-        <div className="grid grid-cols-2 gap-x-12 gap-y-1 text-left text-xs mt-4 w-full max-w-3xl border border-slate-200 p-4 rounded-lg bg-slate-50">
-          <div><strong>Faculty Name:</strong> {facultyName}</div>
-          <div><strong>Computer Code:</strong> {form.faculty_computer_code}</div>
-          <div><strong>Department:</strong> {isStaff() ? (user?.department || 'IT') : 'Verified Department'}</div>
-          <div><strong>Designation:</strong> {isStaff() ? (user?.role || 'Faculty') : getDesignationName(staffProfile?.details?.designation_id)}</div>
-          <div><strong>Academic Session:</strong> {sessionsDropdown.find(s => s.id === Number(form.academic_session))?.name || 'Current'}</div>
-          <div><strong>Appraisal Status:</strong> {appraisalStatus}</div>
+          <div className="grid grid-cols-2 gap-x-12 gap-y-1 text-left text-xs mt-4 w-full max-w-3xl border border-slate-200 p-4 rounded-lg bg-slate-50">
+            <div><strong>Faculty Name:</strong> {facultyName}</div>
+            <div><strong>Computer Code:</strong> {form.faculty_computer_code}</div>
+            <div><strong>Department:</strong> {isStaff() ? (user?.department || 'IT') : 'Verified Department'}</div>
+            <div><strong>Designation:</strong> {isStaff() ? (user?.role || 'Faculty') : getDesignationName(staffProfile?.details?.designation_id)}</div>
+            <div><strong>Academic Session:</strong> {sessionsDropdown.find(s => s.id === Number(form.academic_session))?.name || 'Current'}</div>
+            <div><strong>Appraisal Status:</strong> {appraisalStatus}</div>
+          </div>
         </div>
-      </div>
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
@@ -2135,7 +2156,7 @@ export default function Feedback360() {
                       Faculty Name: <span className="text-slate-900">{staffCache[confidentialTargetFaculty.faculty_computer_code] ? `${staffCache[confidentialTargetFaculty.faculty_computer_code].title || ''} ${staffCache[confidentialTargetFaculty.faculty_computer_code].first_name} ${staffCache[confidentialTargetFaculty.faculty_computer_code].last_name}` : 'Loading...'}</span>
                     </div>
                     <div>
-                      Department: <span className="text-slate-900">{user?.department || 'Computer Science'}</span>
+                      Department: <span className="text-slate-900">{confidentialTargetFaculty.department || 'Not assigned'}</span>
                     </div>
                     <div>
                       Designation: <span className="text-slate-900">{confidentialTargetFaculty.designation || (staffCache[confidentialTargetFaculty.faculty_computer_code]?.details as any)?.designation || 'Not assigned'}</span>
@@ -2149,7 +2170,7 @@ export default function Feedback360() {
                   </div>
 
                   <p className="text-[11px] text-slate-500 font-bold leading-relaxed pt-2 text-center">
-                    The assessment of the faculty against the parameters indicated below is to be done by HOD by assigning an appropriate grade on a scale of 1 to 10. (10 is highest.)
+                    The assessment of the faculty against the parameters indicated below is to be done by {role === 'Principal' ? 'Principal' : 'HOD'} by assigning an appropriate grade on a scale of 1 to 10. (10 is highest.)
                   </p>
                 </div>
 
@@ -2164,7 +2185,9 @@ export default function Feedback360() {
                     </thead>
                     <tbody className="divide-y divide-slate-200 font-medium text-slate-800">
                       {confidentialParameters.map((param, index) => {
-                        const isLocked = ['Forwarded to Principal', 'Principal Approved', 'Principal Rejected'].includes(appraisalStatus);
+                        const isLocked = role === 'Principal'
+                          ? ['Principal Approved', 'Principal Rejected'].includes(appraisalStatus)
+                          : ['Forwarded to Principal', 'Principal Approved', 'Principal Rejected'].includes(appraisalStatus);
                         return (
                           <tr key={param.key} className="hover:bg-slate-50/50">
                             <td className="px-4 py-3.5 text-center text-slate-500 border-r border-slate-200">{index + 1}</td>
@@ -2212,8 +2235,11 @@ export default function Feedback360() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">HOD Confidential Remarks</label>
-                  {['Forwarded to Principal', 'Principal Approved', 'Principal Rejected'].includes(appraisalStatus) ? (
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{role === 'Principal' ? 'Principal' : 'HOD'} Confidential Remarks</label>
+                  {(role === 'Principal'
+                    ? ['Principal Approved', 'Principal Rejected'].includes(appraisalStatus)
+                    : ['Forwarded to Principal', 'Principal Approved', 'Principal Rejected'].includes(appraisalStatus)
+                  ) ? (
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 italic">
                       "{confidentialForm.remarks || 'No remarks provided.'}"
                     </div>
@@ -2240,7 +2266,10 @@ export default function Feedback360() {
                     <Printer size={14} /> Print Confidential Report
                   </button>
 
-                  {!['Forwarded to Principal', 'Principal Approved', 'Principal Rejected'].includes(appraisalStatus) && (
+                  {!(role === 'Principal'
+                    ? ['Principal Approved', 'Principal Rejected'].includes(appraisalStatus)
+                    : ['Forwarded to Principal', 'Principal Approved', 'Principal Rejected'].includes(appraisalStatus)
+                  ) && (
                     <>
                       <button
                         type="button"
@@ -2412,14 +2441,23 @@ export default function Feedback360() {
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Department Performance Appraisals</h2>
-              <p className="text-xs text-slate-400 mt-1">Reviewing submissions for department: <strong className="text-slate-600">{user?.department || 'Assigned Department'}</strong></p>
+              <h2 className="text-xl font-bold text-slate-800">{role === 'Principal' ? 'HOD Performance Appraisals' : 'Department Performance Appraisals'}</h2>
+              <p className="text-xs text-slate-400 mt-1">
+                {role === 'Principal'
+                  ? 'Reviewing self-appraisal submissions from HODs'
+                  : <>Reviewing submissions for department: <strong className="text-slate-600">{user?.department || 'Assigned Department'}</strong></>
+                }
+              </p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={async () => {
                   setLoading(true);
-                  await loadHODDashboard();
+                  if (role === 'Principal') {
+                    await loadPrincipalDashboard();
+                  } else {
+                    await loadHODDashboard();
+                  }
                   setLoading(false);
                 }}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-all"
@@ -2494,7 +2532,9 @@ export default function Feedback360() {
                             }
 
                             const crStatus = item.confidential?.status || 'None';
-                            const isSelectable = rowStatus === 'Under HOD Review' || rowStatus === 'Submitted to HOD' || rowStatus === 'CR Draft' || rowStatus === 'Confidential Report Submitted';
+                            const isSelectable = role === 'Principal'
+                              ? ['Submitted to Principal', 'CR Draft', 'Confidential Report Submitted'].includes(rowStatus)
+                              : (rowStatus === 'Under HOD Review' || rowStatus === 'Submitted to HOD' || rowStatus === 'CR Draft' || rowStatus === 'Confidential Report Submitted');
 
                             return (
                               <tr key={item.api_id} className="hover:bg-slate-50/50">
@@ -2583,8 +2623,8 @@ export default function Feedback360() {
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Principal Appraisal review console</h2>
-              <p className="text-xs text-slate-400 mt-1">Reviewing forwarded scorecards and HOD submissions</p>
+              <h2 className="text-xl font-bold text-slate-800">Principal HOD Feedback Review</h2>
+              <p className="text-xs text-slate-400 mt-1">Reviewing self-appraisals submitted by HODs</p>
             </div>
             <button
               onClick={async () => {
@@ -2612,15 +2652,35 @@ export default function Feedback360() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                  {principalList.length === 0 ? (
+                  {principalList.filter(item => {
+                    if (item.designation !== 'HOD') return false;
+                    const metaRow = item.cat1i?.find((x: any) => x.sno === -999);
+                    let rowStatus = 'Draft';
+                    if (metaRow && metaRow.ccnc) {
+                      try {
+                        rowStatus = JSON.parse(metaRow.ccnc).status || 'Draft';
+                      } catch (e) { }
+                    }
+                    return ['Submitted to Principal', 'CR Draft', 'Confidential Report Submitted', 'Principal Approved', 'Principal Rejected'].includes(rowStatus);
+                  }).length === 0 ? (
                     <tr>
                       <td colSpan={6} className="text-center py-16 text-slate-400 font-normal">
-                        No HOD scorecards or forwarded faculty scorecards available.
+                        No HOD appraisal records submitted for review.
                       </td>
                     </tr>
-                  ) : principalList.map((item, index) => {
+                  ) : principalList.filter(item => {
+                    if (item.designation !== 'HOD') return false;
+                    const metaRow = item.cat1i?.find((x: any) => x.sno === -999);
+                    let rowStatus = 'Draft';
+                    if (metaRow && metaRow.ccnc) {
+                      try {
+                        rowStatus = JSON.parse(metaRow.ccnc).status || 'Draft';
+                      } catch (e) { }
+                    }
+                    return ['Submitted to Principal', 'CR Draft', 'Confidential Report Submitted', 'Principal Approved', 'Principal Rejected'].includes(rowStatus);
+                  }).map((item, index) => {
                     const cache = staffCache[item.faculty_computer_code];
-                    const name = cache ? `${cache.title || ''} ${cache.first_name} ${cache.last_name}` : 'Loading profile...';
+                    const name = item.faculty_name || (cache?.staff ? `${cache.staff.title || ''} ${cache.staff.first_name} ${cache.staff.last_name}` : `Code ${item.faculty_computer_code}`);
                     const sessionName = sessionsDropdown.find(s => s.id === item.academic_session)?.name || 'Active';
 
                     const metaRow = item.cat1i?.find((x: any) => x.sno === -999);
@@ -2634,6 +2694,8 @@ export default function Feedback360() {
                       else if (item.submited) rowStatus = 'Submitted';
                     }
 
+                    const crStatus = item.confidential?.status || 'None';
+
                     return (
                       <tr key={item.api_id} className="hover:bg-slate-50/50">
                         <td className="px-6 py-4 text-center text-slate-400">#{index + 1}</td>
@@ -2641,15 +2703,27 @@ export default function Feedback360() {
                         <td className="px-6 py-4 font-mono text-xs">{item.faculty_computer_code}</td>
                         <td className="px-6 py-4">{sessionName}</td>
                         <td className="px-6 py-4 text-center">{getStatusBadge(rowStatus)}</td>
-                        <td className="px-6 py-4 text-right space-x-1.5">
+                        <td className="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
                           <button
                             onClick={() => {
                               navigate(`/dashboard/staff/feedback?view=principal&id=${item.api_id}`);
                             }}
-                            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
                           >
                             <Eye size={12} /> Review
                           </button>
+                          {['Submitted to Principal', 'CR Draft', 'Confidential Report Submitted'].includes(rowStatus) && (
+                            <button
+                              onClick={() => handleOpenConfidentialAssessment(item)}
+                              className={`px-3 py-1.5 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 ${
+                                crStatus === 'Submitted' || crStatus === 'Draft'
+                                  ? 'bg-red-500 hover:bg-red-600'
+                                  : 'bg-emerald-600 hover:bg-emerald-700'
+                              }`}
+                            >
+                              <FileText size={12} /> {crStatus === 'Submitted' || crStatus === 'Draft' ? 'Edit API Credit' : 'Fill API Credit'}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -3105,7 +3179,7 @@ export default function Feedback360() {
                   <Printer size={16} /> Print Appraisal Report
                 </button>
 
-                {(!form.hod_approval && (isSelf || role === 'HOD')) && (
+                {['Draft', 'HOD Rejected', 'Principal Rejected'].includes(appraisalStatus) && (
                   <>
                     <button
                       onClick={() => handleTeacherSubmitAction('draft')}
@@ -3114,13 +3188,21 @@ export default function Feedback360() {
                     >
                       <Save size={16} /> Save Draft
                     </button>
-                    {role !== 'HOD' && (
+                    {role !== 'HOD' ? (
                       <button
                         onClick={() => handleTeacherSubmitAction('submit')}
                         disabled={submitting}
                         className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm flex items-center gap-1.5 transition-all shadow-lg shadow-indigo-600/10 active:scale-[0.98] disabled:opacity-50"
                       >
                         Submit Final Appraisal <ArrowRight size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleTeacherSubmitAction('submit-to-principal')}
+                        disabled={submitting}
+                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm flex items-center gap-1.5 transition-all shadow-lg shadow-indigo-600/10 active:scale-[0.98] disabled:opacity-50"
+                      >
+                        Submit to Principal <ArrowRight size={16} />
                       </button>
                     )}
                   </>
@@ -3144,43 +3226,43 @@ export default function Feedback360() {
         <div id="printable-area" className="hidden print:block font-serif text-black p-8 space-y-8 bg-white">
           {/* Print CR */}
           {printType === 'cr' && (
-            <div className="space-y-6">
-              <div className="text-center pb-4 border-b border-black">
-                <h1 className="text-2xl font-bold uppercase">IPS Academy</h1>
-                <h2 className="text-sm font-semibold uppercase">Institute of Engineering & Science, Indore (M.P.)</h2>
-                <h3 className="text-md font-bold mt-2 underline">Confidential Report (HOD API Assessment)</h3>
+            <div className="space-y-4">
+              <div className="text-center pb-2 border-b border-black">
+                <h1 className="text-xl font-bold uppercase">IPS Academy</h1>
+                <h2 className="text-xs font-semibold uppercase">Institute of Engineering & Science, Indore (M.P.)</h2>
+                <h3 className="text-sm font-bold mt-1 underline">Confidential Report (HOD API Assessment)</h3>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-xs font-bold border border-black p-4 rounded bg-white">
+              <div className="grid grid-cols-2 gap-2 text-xs font-bold border border-black p-3 rounded bg-white">
                 <div>Faculty Name: {staffCache[printTarget.faculty_computer_code]?.staff ? `${staffCache[printTarget.faculty_computer_code].staff.title || ''} ${staffCache[printTarget.faculty_computer_code].staff.first_name} ${staffCache[printTarget.faculty_computer_code].staff.last_name}` : (printTarget.faculty_name || 'N/A')}</div>
                 <div>Computer Code: {printTarget.faculty_computer_code}</div>
                 <div>Department: {staffCache[printTarget.faculty_computer_code]?.details?.dept_id ? getDepartmentName(staffCache[printTarget.faculty_computer_code].details.dept_id) : (printTarget.department || 'N/A')}</div>
                 <div>Academic Session: {sessionsDropdown.find(s => s.id === printTarget.academic_session)?.name || 'N/A'}</div>
               </div>
 
-              <table className="w-full text-left text-xs border-collapse border border-black mt-4">
+              <table className="w-full text-left text-xs border-collapse border border-black mt-2">
                 <thead>
                   <tr className="bg-slate-50 border-b border-black text-black font-bold uppercase">
-                    <th className="px-4 py-2 w-16 text-center border-r border-black">S.No</th>
-                    <th className="px-4 py-2 border-r border-black">Parameter</th>
-                    <th className="px-4 py-2 w-28 text-center">Score (1-10)</th>
+                    <th className="px-3 py-1.5 w-16 text-center border-r border-black">S.No</th>
+                    <th className="px-3 py-1.5 border-r border-black">Parameter</th>
+                    <th className="px-3 py-1.5 w-28 text-center">Score (1-10)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black">
                   {confidentialParameters.map((param, idx) => (
                     <tr key={param.key}>
-                      <td className="px-4 py-2.5 text-center border-r border-black">{idx + 1}</td>
-                      <td className="px-4 py-2.5 border-r border-black font-semibold">{param.label}</td>
-                      <td className="px-4 py-2.5 text-center font-bold">
+                      <td className="px-3 py-1.5 text-center border-r border-black">{idx + 1}</td>
+                      <td className="px-3 py-1.5 border-r border-black font-semibold">{param.label}</td>
+                      <td className="px-3 py-1.5 text-center font-bold">
                         {printTarget.confidential?.status === 'Submitted'
-                          ? (printTarget.confidential?.[param.key] ?? 'N/A')
+                           ? (printTarget.confidential?.[param.key] ?? 'N/A')
                           : 'N/A'}
                       </td>
                     </tr>
                   ))}
                   <tr className="border-t border-black font-bold">
-                    <td colSpan={2} className="px-4 py-3 text-right border-r border-black uppercase font-bold">Total Marks:</td>
-                    <td className="px-4 py-3 text-center text-sm font-bold">
+                    <td colSpan={2} className="px-3 py-2 text-right border-r border-black uppercase font-bold">Total Marks:</td>
+                    <td className="px-3 py-2 text-center text-sm font-bold">
                       {printTarget.confidential?.status === 'Submitted'
                         ? `${printTarget.confidential?.total_marks ?? 0}/70`
                         : '0/70'}
@@ -3190,13 +3272,13 @@ export default function Feedback360() {
               </table>
 
               {printTarget.confidential?.status === 'Submitted' && printTarget.confidential?.remarks && (
-                <div className="space-y-1 border border-black p-4 rounded mt-4">
+                <div className="space-y-1 border border-black p-3 rounded mt-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider block">Confidential Remarks by HOD:</span>
                   <p className="text-xs italic">"{printTarget.confidential.remarks}"</p>
                 </div>
               )}
 
-              <div className="pt-16 flex justify-between text-xs font-bold">
+              <div className="pt-10 flex justify-between text-xs font-bold">
                 <div className="text-center">
                   <div className="border-t border-black w-44 pt-2">Faculty Member Signature</div>
                 </div>
@@ -3377,7 +3459,8 @@ export default function Feedback360() {
               </div>
 
               {/* Part B: Annexure II */}
-              <div className="page-break pt-8 space-y-6">
+              <div className="page-break" />
+              <div className="pt-8 space-y-6">
                 <h4 className="text-sm font-extrabold border-b pb-1 uppercase">Part B: Annexure II (Research Contribution)</h4>
                 <table className="w-full text-left text-xs border-collapse border border-black">
                   <thead>
@@ -3408,7 +3491,8 @@ export default function Feedback360() {
               </div>
 
               {/* Part C: Annexure III */}
-              <div className="page-break pt-8 space-y-6">
+              <div className="page-break" />
+              <div className="pt-8 space-y-6">
                 <h4 className="text-sm font-extrabold border-b pb-1 uppercase">Part C: Annexure III (Self Assessment)</h4>
                 <table className="w-full text-left text-xs border-collapse border border-black">
                   <thead>
@@ -3439,7 +3523,8 @@ export default function Feedback360() {
               </div>
 
               {/* Part D: CR */}
-              <div className="page-break pt-8 space-y-6">
+              <div className="page-break" />
+              <div className="pt-8 space-y-6">
                 <h4 className="text-sm font-extrabold border-b pb-1 uppercase">Part D: Confidential Report (CR)</h4>
                 <table className="w-full text-left text-xs border-collapse border border-black">
                   <thead>
@@ -3471,7 +3556,8 @@ export default function Feedback360() {
               </div>
 
               {/* Part E: Summary Sheet */}
-              <div className="page-break pt-8 space-y-6 text-black">
+              <div className="page-break" />
+              <div className="pt-8 space-y-6 text-black">
                 <div className="text-center space-y-1">
                   <h1 className="text-2xl font-black tracking-wide uppercase">IPS Academy</h1>
                   <h2 className="text-sm font-extrabold uppercase">Institute of Engineering & Science</h2>
