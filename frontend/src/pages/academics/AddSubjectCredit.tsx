@@ -1,322 +1,572 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, DollarSign } from 'lucide-react';
+import { 
+  Award, RotateCcw, Save, Calendar, BookOpen, Layers, Info, AlertCircle 
+} from 'lucide-react';
 import Toast from '../../components/Toast';
-import Modal from '../../components/Modal';
+import { api } from '../../lib/api';
+import { useAcademicSession } from '../../lib/AcademicSessionContext';
 
-type Subject = { id: number; subject_code: string; subject_name: string };
-type SubjectCredit = {
-  id: number;
-  subject_id: number;
-  scheme_name: string;
-  lecture_credits: number;
-  tutorial_credits: number;
-  practical_credits: number;
-  total_credits: number;
-  subject?: Subject;
+// Define the Subject structure coming from backend
+type SubjectCreditItem = {
+  college_sub_code: string;
+  subject_name: string;
+  type: string;
+  totalCredit: number;
+  endSem: number;
+  mst: number;
+  assignment: number;
+  labwork_sessional: number;
 };
+
+type CreditConfig = {
+  totalCredit: number | '';
+  endSem: number | '';
+  mst: number | '';
+  assignment: number | '';
+  labwork_sessional: number | '';
+};
+
+type SemesterConfigs = Record<string, CreditConfig>;
 
 const AddSubjectCredit = () => {
   const { role } = useAuth();
+  const { currentSession } = useAcademicSession();
 
   // Route Guard: Only HOD can access
   if (role !== 'HOD') {
     return <Navigate to="/unauthorized" replace />;
   }
 
+  // Local state variables
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [credits, setCredits] = useState<SubjectCredit[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [creditForm, setCreditForm] = useState<Partial<SubjectCredit>>({
-    lecture_credits: 0,
-    tutorial_credits: 0,
-    practical_credits: 0,
-    total_credits: 0
-  });
-  const [submitting, setSubmitting] = useState(false);
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
+  const [subjectsList, setSubjectsList] = useState<SubjectCreditItem[]>([]);
+  const [configs, setConfigs] = useState<SemesterConfigs>({});
+  const [loading, setLoading] = useState(false);
+  const [dbSessions, setDbSessions] = useState<{ id: number; name: string }[]>([]);
 
-  const fetchData = async () => {
+  // Resolve global session string to database session ID
+  const matchSessionToDBId = (sessionStr: string, sessionsList: { id: number; name: string }[]) => {
+    if (!sessionStr) return null;
+    const match = sessionStr.match(/^(\d{4})-(\d{4})/);
+    if (!match) return null;
+    const startYear = match[1];
+    const endYearShort = match[2].slice(2);
+    const targetName = `${startYear}-${endYearShort}`;
+    const found = sessionsList.find(s => s.name === targetName);
+    return found ? found.id : null;
+  };
+
+  // Clear selected semester when academic session changes
+  useEffect(() => {
+    setSelectedSemester('');
+  }, [currentSession]);
+
+  // Load database sessions on mount
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const res = await api.get('/academic-sessions/dropdown');
+        setDbSessions(res.data?.data?.sessions || []);
+      } catch (e) {
+        console.error('Failed to load academic sessions:', e);
+      }
+    };
+    fetchSessions();
+  }, []);
+
+  // Determine available semesters based on selected Academic Session
+  const getAvailableSemesters = (session: string) => {
+    if (!session) return [];
+    if (session.includes('Jan-Jun') || session.includes('Jan-June')) {
+      return ['2', '4', '6', '8'];
+    }
+    if (session.includes('July-Dec')) {
+      return ['1', '3', '5', '7'];
+    }
+    return [];
+  };
+
+  const availableSemesters = getAvailableSemesters(currentSession);
+
+  // Fetch subject configs from backend database
+  const fetchConfigs = async () => {
+    if (!selectedSemester || dbSessions.length === 0) {
+      setSubjectsList([]);
+      setConfigs({});
+      return;
+    }
     setLoading(true);
     try {
-      const [creditRes, subjectRes] = await Promise.all([
-        api.get('/academic/subject-credits'),
-        api.get('/academic/subjects')
-      ]);
-      setCredits(creditRes.data?.data || []);
-      // Filter only active subjects for dropdown select
-      const activeSubs = (subjectRes.data?.data || []).filter((s: any) => s.active === 1);
-      setSubjects(activeSubs);
-    } catch (error) {
-      setToast({ message: 'Failed to fetch academic data', type: 'error' });
+      const sessionId = matchSessionToDBId(currentSession, dbSessions);
+      if (!sessionId) {
+        setToast({ message: 'Invalid academic session.', type: 'error' });
+        setLoading(false);
+        return;
+      }
+
+      const res = await api.get('/academic/subject-credits', {
+        params: {
+          semester: Number(selectedSemester),
+          academic_session: sessionId
+        }
+      });
+
+      const list: SubjectCreditItem[] = res.data?.data || [];
+      setSubjectsList(list);
+
+      const initialConfigs: SemesterConfigs = {};
+      list.forEach(item => {
+        const itemType = item.type.toLowerCase();
+        const hasTheory = itemType.includes('theory') || itemType.includes('tutorial') || itemType.includes('project') || itemType.includes('seminar');
+        const hasPractical = itemType.includes('practical');
+        
+        if (hasTheory) {
+          initialConfigs[item.college_sub_code + '_Theory'] = {
+            totalCredit: item.totalCredit,
+            endSem: item.endSem,
+            mst: item.mst,
+            assignment: item.assignment,
+            labwork_sessional: ''
+          };
+        }
+        if (hasPractical) {
+          initialConfigs[item.college_sub_code + '_Practical'] = {
+            totalCredit: item.totalCredit,
+            endSem: item.endSem,
+            mst: '',
+            assignment: '',
+            labwork_sessional: item.labwork_sessional
+          };
+        }
+      });
+      setConfigs(initialConfigs);
+    } catch (e) {
+      console.error('Failed to load credit configurations:', e);
+      setToast({ message: 'Failed to load configurations from database', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchConfigs();
+  }, [selectedSemester, currentSession, dbSessions]);
 
-  const openModal = (credit?: SubjectCredit) => {
-    if (credit) {
-      setCreditForm(credit);
-      setIsEditing(true);
+  // Helper function to calculate total credits dynamically
+  const calculateTotal = (config: CreditConfig, type: 'Theory' | 'Practical'): number | '' => {
+    const endSem = config.endSem !== '' ? Number(config.endSem) : 0;
+    if (type === 'Theory') {
+      const mst = config.mst !== '' ? Number(config.mst) : 0;
+      const assignment = config.assignment !== '' ? Number(config.assignment) : 0;
+      return endSem + mst + assignment;
     } else {
-      setCreditForm({
-        subject_id: subjects[0]?.id || undefined,
-        scheme_name: '',
-        lecture_credits: 3,
-        tutorial_credits: 1,
-        practical_credits: 0,
-        total_credits: 4
-      });
-      setIsEditing(false);
+      const labwork = config.labwork_sessional !== '' ? Number(config.labwork_sessional) : 0;
+      return endSem + labwork;
     }
-    setShowModal(true);
   };
 
-  // Automatically calculate total credits when L, T, P changes
-  const handleLTPChange = (field: 'lecture_credits' | 'tutorial_credits' | 'practical_credits', val: number) => {
-    const nextForm = { ...creditForm, [field]: val };
-    const l = nextForm.lecture_credits || 0;
-    const t = nextForm.tutorial_credits || 0;
-    const p = nextForm.practical_credits || 0;
-    nextForm.total_credits = l + t + p;
-    setCreditForm(nextForm);
-  };
-
-  const saveCredit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!creditForm.subject_id) {
-      setToast({ message: 'Please select a subject', type: 'error' });
+  // Handle configuration changes with validation checks
+  const handleConfigChange = (
+    collegeSubCode: string, 
+    field: keyof CreditConfig, 
+    value: string, 
+    type: 'Theory' | 'Practical'
+  ) => {
+    const configKey = collegeSubCode + '_' + type;
+    if (value === '') {
+      setConfigs(prev => {
+        const current = prev[configKey] || { totalCredit: '', endSem: '', mst: '', assignment: '', labwork_sessional: '' };
+        const updated = { ...current, [field]: '' };
+        updated.totalCredit = calculateTotal(updated, type);
+        return {
+          ...prev,
+          [configKey]: updated
+        };
+      });
       return;
     }
-    setSubmitting(true);
-    try {
-      const payload = {
-        subject_id: Number(creditForm.subject_id),
-        scheme_name: creditForm.scheme_name,
-        lecture_credits: Number(creditForm.lecture_credits),
-        tutorial_credits: Number(creditForm.tutorial_credits),
-        practical_credits: Number(creditForm.practical_credits),
-        total_credits: Number(creditForm.total_credits)
-      };
 
-      if (isEditing && creditForm.id) {
-        await api.put(`/academic/subject-credits/${creditForm.id}`, payload);
-        setToast({ message: 'Subject credit updated successfully', type: 'success' });
-      } else {
-        await api.post('/academic/subject-credits', payload);
-        setToast({ message: 'Subject credit created successfully', type: 'success' });
+    const num = Number(value);
+    // Validation: prevent negative numbers or invalid numeric characters
+    if (isNaN(num) || num < 0) return;
+
+    // Apply upper bounds
+    let max = 100;
+    if (type === 'Theory') {
+      if (field === 'mst' || field === 'assignment') {
+        max = 30;
       }
-      setShowModal(false);
-      fetchData();
-    } catch (error: any) {
-      setToast({ message: error.response?.data?.detail || 'Error saving subject credit', type: 'error' });
-    } finally {
-      setSubmitting(false);
+    } else {
+      if (field === 'labwork_sessional') {
+        max = 100;
+      }
     }
+
+    if (num > max) {
+      setToast({ message: `Max limit exceeded! Maximum allowed for this field is ${max}.`, type: 'error' });
+      return;
+    }
+
+    setConfigs(prev => {
+      const current = prev[configKey] || { totalCredit: '', endSem: '', mst: '', assignment: '', labwork_sessional: '' };
+      const updated = { ...current, [field]: num };
+      updated.totalCredit = calculateTotal(updated, type);
+      return {
+        ...prev,
+        [configKey]: updated
+      };
+    });
   };
 
-  const deleteCredit = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this subject credit rule?')) return;
+  const theorySubjects = subjectsList.filter(s => {
+    const t = s.type.toLowerCase();
+    return t.includes('theory') || t.includes('tutorial') || t.includes('project') || t.includes('seminar');
+  });
+  
+  const practicalSubjects = subjectsList.filter(s => {
+    const t = s.type.toLowerCase();
+    return t.includes('practical');
+  });
+
+  // Action handlers
+  const handleReset = () => {
+    fetchConfigs();
+    setToast({ message: 'Configuration reset successfully', type: 'success' });
+  };
+
+  const handleSave = async () => {
+    let isValid = true;
+    const saveList: any[] = [];
+
+    for (const sub of subjectsList) {
+      const subType = sub.type.toLowerCase();
+      const hasTheory = subType.includes('theory') || subType.includes('tutorial') || subType.includes('project') || subType.includes('seminar');
+      const hasPractical = subType.includes('practical');
+
+      if (hasTheory) {
+        const cfg = configs[sub.college_sub_code + '_Theory'];
+        if (!cfg || cfg.totalCredit === '' || cfg.endSem === '' || cfg.mst === '' || cfg.assignment === '') {
+          isValid = false;
+          break;
+        }
+
+        // Validation: Total Credits = End Sem + MST + Assignment
+        const sum = Number(cfg.endSem) + Number(cfg.mst) + Number(cfg.assignment);
+        if (Number(cfg.totalCredit) !== sum) {
+          setToast({
+            message: `Validation failed: Total Credits (${cfg.totalCredit}) must equal End Sem (${cfg.endSem}) + MST (${cfg.mst}) + Assignment (${cfg.assignment}) for subject ${sub.subject_name} (Theory).`,
+            type: 'error'
+          });
+          return;
+        }
+
+        saveList.push({
+          college_sub_code: sub.college_sub_code,
+          totalCredit: Number(cfg.totalCredit),
+          endSem: Number(cfg.endSem),
+          mst: Number(cfg.mst),
+          assignment: Number(cfg.assignment),
+          labwork_sessional: 0,
+          type: 'Theory'
+        });
+      }
+
+      if (hasPractical) {
+        const cfg = configs[sub.college_sub_code + '_Practical'];
+        if (!cfg || cfg.totalCredit === '' || cfg.endSem === '' || cfg.labwork_sessional === '') {
+          isValid = false;
+          break;
+        }
+
+        // Validation: Total Credits = End Sem + Lab Work / Sessional
+        const sum = Number(cfg.endSem) + Number(cfg.labwork_sessional);
+        if (Number(cfg.totalCredit) !== sum) {
+          setToast({
+            message: `Validation failed: Total Credits (${cfg.totalCredit}) must equal End Sem (${cfg.endSem}) + Lab Work / Sessional (${cfg.labwork_sessional}) for subject ${sub.subject_name} (Practical).`,
+            type: 'error'
+          });
+          return;
+        }
+
+        saveList.push({
+          college_sub_code: sub.college_sub_code,
+          totalCredit: Number(cfg.totalCredit),
+          endSem: Number(cfg.endSem),
+          mst: 0,
+          assignment: 0,
+          labwork_sessional: Number(cfg.labwork_sessional),
+          type: 'Practical'
+        });
+      }
+    }
+
+    if (!isValid) {
+      setToast({ message: 'Please fill in all credit and marks configuration values.', type: 'error' });
+      return;
+    }
+
     try {
-      await api.delete(`/academic/subject-credits/${id}`);
-      setToast({ message: 'Subject credit deleted successfully', type: 'success' });
-      fetchData();
-    } catch (error: any) {
-      setToast({ message: error.response?.data?.detail || 'Error deleting subject credit', type: 'error' });
+      const sessionId = matchSessionToDBId(currentSession, dbSessions);
+      if (!sessionId) return;
+
+      await api.post('/academic/subject-credits/bulk', {
+        semester: Number(selectedSemester),
+        academic_session: sessionId,
+        configs: saveList
+      });
+
+      setToast({ message: 'Subject credits and schema configuration saved successfully', type: 'success' });
+      fetchConfigs();
+    } catch (e: any) {
+      console.error('Failed to save bulk credits:', e);
+      setToast({ message: e.response?.data?.detail || 'Error saving credit configurations to database', type: 'error' });
     }
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50">
-      <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="flex-1 overflow-y-auto bg-slate-50/50">
+      <div className="p-8 max-w-7xl mx-auto space-y-8 font-sans">
+        {/* Top Header Section */}
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <DollarSign className="text-blue-600" /> Subject Credits
+            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2.5">
+              <Award className="text-blue-600 w-7 h-7" /> Configure Subject Credits
             </h1>
-            <p className="text-sm text-slate-500 mt-1">Configure credit structure (L-T-P) for subjects</p>
+            <p className="text-sm text-slate-500 mt-1">Configure credit structure and marks weighting schemas for active subjects</p>
+          </div>
+          <div className="flex items-center gap-2.5 px-4 py-2 bg-white border border-slate-200 rounded-2xl shadow-sm text-xs font-bold text-slate-600">
+            <Calendar size={14} className="text-slate-500" />
+            <span>Active Session: <strong className="text-blue-600">{currentSession}</strong></span>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-slate-800">All Subject Credits</h2>
-            <button
-              onClick={() => openModal()}
-              disabled={subjects.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              <Plus size={16} /> Add Subject Credit
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            {loading ? (
-              <div className="p-8 text-center text-slate-500">Loading credits config...</div>
-            ) : (
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-6 py-3 font-semibold text-slate-600">Subject</th>
-                    <th className="px-6 py-3 font-semibold text-slate-600">Scheme Name</th>
-                    <th className="px-6 py-3 font-semibold text-slate-600 text-center">Lecture (L)</th>
-                    <th className="px-6 py-3 font-semibold text-slate-600 text-center">Tutorial (T)</th>
-                    <th className="px-6 py-3 font-semibold text-slate-600 text-center">Practical (P)</th>
-                    <th className="px-6 py-3 font-semibold text-slate-600 text-center">Total Credits</th>
-                    <th className="px-6 py-3 font-semibold text-slate-600 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {credits.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/50">
-                      <td className="px-6 py-4 font-medium text-slate-800">
-                        {c.subject ? `${c.subject.subject_name} (${c.subject.subject_code})` : `Subject ID: ${c.subject_id}`}
-                      </td>
-                      <td className="px-6 py-4 text-slate-600">{c.scheme_name}</td>
-                      <td className="px-6 py-4 text-center text-slate-600">{c.lecture_credits}</td>
-                      <td className="px-6 py-4 text-center text-slate-600">{c.tutorial_credits}</td>
-                      <td className="px-6 py-4 text-center text-slate-600">{c.practical_credits}</td>
-                      <td className="px-6 py-4 text-center font-bold text-blue-600">{c.total_credits}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => openModal(c)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors mr-2"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => deleteCredit(c.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {credits.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
-                        No subject credit configurations found.{' '}
-                        {subjects.length === 0 ? 'Add subjects first before adding credits.' : "Click 'Add Subject Credit' to configure."}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {showModal && (
-        <Modal title={isEditing ? 'Edit Subject Credit' : 'Add Subject Credit'} onClose={() => setShowModal(false)}>
-          <form onSubmit={saveCredit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Subject *</label>
+        {/* Card 1: Semester Selection */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                <Layers size={18} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Select Semester *</label>
+                <p className="text-xxs text-slate-400 mt-0.5">Semesters filtered by selected academic session</p>
+              </div>
+            </div>
+            <div className="flex-1 max-w-xs">
               <select
-                disabled={isEditing}
-                value={creditForm.subject_id || ''}
-                onChange={(e) => setCreditForm({ ...creditForm, subject_id: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                value={selectedSemester}
+                onChange={(e) => setSelectedSemester(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-2xl text-sm font-semibold text-slate-700 focus:outline-none focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all cursor-pointer"
               >
-                {subjects.map((sub) => (
-                  <option key={sub.id} value={sub.id}>
-                    {sub.subject_name} ({sub.subject_code})
-                  </option>
+                <option value="">Choose a Semester</option>
+                {availableSemesters.map(sem => (
+                  <option key={sem} value={sem}>Semester {sem}</option>
                 ))}
               </select>
             </div>
+          </div>
+        </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Scheme Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. CBCS 2023 or 2024 Scheme"
-                value={creditForm.scheme_name || ''}
-                onChange={(e) => setCreditForm({ ...creditForm, scheme_name: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+        {/* Conditional Configuration Tables */}
+        {loading ? (
+          <div className="p-8 text-center text-slate-400 font-medium">Loading configurations from database...</div>
+        ) : !selectedSemester ? (
+          /* Empty State: No Semester Selected */
+          <div className="flex flex-col items-center justify-center py-16 bg-white border border-dashed border-slate-300 rounded-3xl text-center p-6 shadow-sm">
+            <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-4">
+              <Info size={28} />
             </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Lecture (L) *</label>
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  value={creditForm.lecture_credits}
-                  onChange={(e) => handleLTPChange('lecture_credits', Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tutorial (T) *</label>
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  value={creditForm.tutorial_credits}
-                  onChange={(e) => handleLTPChange('tutorial_credits', Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Practical (P) *</label>
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  value={creditForm.practical_credits}
-                  onChange={(e) => handleLTPChange('practical_credits', Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            <h3 className="text-base font-bold text-slate-700">Configure Semester Credits</h3>
+            <p className="text-sm text-slate-400 max-w-sm mt-1.5 leading-relaxed">
+              Please select a semester from the dropdown above to load and configure subject credits.
+            </p>
+          </div>
+        ) : subjectsList.length === 0 ? (
+          /* Empty State: No Subjects Found */
+          <div className="flex flex-col items-center justify-center py-16 bg-white border border-slate-200 rounded-3xl text-center p-6 shadow-sm">
+            <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle size={28} />
             </div>
+            <h3 className="text-base font-bold text-slate-700">No Subjects Found</h3>
+            <p className="text-sm text-slate-400 max-w-sm mt-1.5 leading-relaxed">
+              No subjects exist for Semester {selectedSemester} in the selected academic session. Please add subjects first.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-8 animate-fadeIn">
+            {/* Card 2: Theory Subjects */}
+            {theorySubjects.length > 0 && (
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-200 bg-slate-50/50 flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <BookOpen size={18} className="text-slate-500" /> Theory Subjects Configuration
+                  </h2>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1 font-bold">Total Credits</label>
-              <input
-                type="number"
-                readOnly
-                value={creditForm.total_credits}
-                className="w-full px-3 py-2 border border-slate-200 bg-slate-100 rounded-lg text-sm focus:outline-none font-bold text-blue-600"
-              />
-              <p className="text-xs text-slate-400 mt-1">Automatically calculated as L + T + P</p>
-            </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-xxs font-bold text-slate-500 uppercase tracking-wider bg-slate-50/30 sticky top-0 z-10">
+                        <th className="px-6 py-4 w-16 text-center">S.No</th>
+                        <th className="px-6 py-4 w-36">Subject Code</th>
+                        <th className="px-6 py-4 min-w-[200px]">Subject Name</th>
+                        <th className="px-6 py-4 w-28 text-center">Total Credits</th>
+                        <th className="px-6 py-4 w-28 text-center">End Sem Marks</th>
+                        <th className="px-6 py-4 w-28 text-center">MST Marks</th>
+                        <th className="px-6 py-4 w-32 text-center">Quiz / Assignment</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {theorySubjects.map((sub, idx) => {
+                        const config = configs[sub.college_sub_code + '_Theory'] || { totalCredit: '', endSem: '', mst: '', assignment: '', labwork_sessional: '' };
+                        return (
+                          <tr key={sub.college_sub_code} className="hover:bg-slate-50/40 transition-colors">
+                            <td className="px-6 py-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                            <td className="px-6 py-4 font-bold text-blue-600">{sub.college_sub_code}</td>
+                            <td className="px-6 py-4 font-semibold text-slate-800">{sub.subject_name}</td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                min={0}
+                                max={200}
+                                value={config.totalCredit}
+                                readOnly
+                                className="w-16 mx-auto block text-center px-2 py-1.5 border border-slate-200 rounded-xl font-bold text-slate-700 bg-slate-100/70 cursor-not-allowed focus:outline-none text-xs"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={config.endSem}
+                                onChange={(e) => handleConfigChange(sub.college_sub_code, 'endSem', e.target.value, 'Theory')}
+                                className="w-20 mx-auto block text-center px-2 py-1.5 border border-slate-200 focus:border-blue-500 rounded-xl font-bold text-slate-700 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-xs"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                min={0}
+                                max={30}
+                                value={config.mst}
+                                onChange={(e) => handleConfigChange(sub.college_sub_code, 'mst', e.target.value, 'Theory')}
+                                className="w-18 mx-auto block text-center px-2 py-1.5 border border-slate-200 focus:border-blue-500 rounded-xl font-bold text-slate-700 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-xs"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                min={0}
+                                max={30}
+                                value={config.assignment}
+                                onChange={(e) => handleConfigChange(sub.college_sub_code, 'assignment', e.target.value, 'Theory')}
+                                className="w-18 mx-auto block text-center px-2 py-1.5 border border-slate-200 focus:border-blue-500 rounded-xl font-bold text-slate-700 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-xs"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            {/* Card 3: Practical Subjects */}
+            {practicalSubjects.length > 0 && (
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-fadeIn">
+                <div className="p-6 border-b border-slate-200 bg-slate-50/50 flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full"></div>
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <BookOpen size={18} className="text-slate-500" /> Practical Subjects Configuration
+                  </h2>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-xxs font-bold text-slate-500 uppercase tracking-wider bg-slate-50/30 sticky top-0 z-10">
+                        <th className="px-6 py-4 w-16 text-center">S.No</th>
+                        <th className="px-6 py-4 w-36">Subject Code</th>
+                        <th className="px-6 py-4 min-w-[200px]">Subject Name</th>
+                        <th className="px-6 py-4 w-28 text-center">Total Credits</th>
+                        <th className="px-6 py-4 w-28 text-center">End Sem Marks</th>
+                        <th className="px-6 py-4 w-36 text-center">Lab Work / Sessional</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {practicalSubjects.map((sub, idx) => {
+                        const config = configs[sub.college_sub_code + '_Practical'] || { totalCredit: '', endSem: '', mst: '', assignment: '', labwork_sessional: '' };
+                        return (
+                          <tr key={sub.college_sub_code} className="hover:bg-slate-50/40 transition-colors">
+                            <td className="px-6 py-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                            <td className="px-6 py-4 font-bold text-emerald-600">{sub.college_sub_code}</td>
+                            <td className="px-6 py-4 font-semibold text-slate-800">{sub.subject_name}</td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                min={0}
+                                max={200}
+                                value={config.totalCredit}
+                                readOnly
+                                className="w-16 mx-auto block text-center px-2 py-1.5 border border-slate-200 rounded-xl font-bold text-slate-700 bg-slate-100/70 cursor-not-allowed focus:outline-none text-xs"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={config.endSem}
+                                onChange={(e) => handleConfigChange(sub.college_sub_code, 'endSem', e.target.value, 'Practical')}
+                                className="w-20 mx-auto block text-center px-2 py-1.5 border border-slate-200 focus:border-blue-500 rounded-xl font-bold text-slate-700 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-xs"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={config.labwork_sessional}
+                                onChange={(e) => handleConfigChange(sub.college_sub_code, 'labwork_sessional', e.target.value, 'Practical')}
+                                className="w-20 mx-auto block text-center px-2 py-1.5 border border-emerald-500 focus:border-emerald-500 rounded-xl font-bold text-slate-700 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all text-xs"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Actions Row */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+                onClick={handleReset}
+                className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-2xl text-xs font-bold transition-all duration-200 active:scale-98"
               >
-                Cancel
+                <RotateCcw size={14} /> Reset
               </button>
               <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-75"
+                type="button"
+                onClick={handleSave}
+                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all duration-200 active:scale-98"
               >
-                {submitting ? 'Saving...' : 'Save Config'}
+                <Save size={14} /> Save Credits
               </button>
             </div>
-          </form>
-        </Modal>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

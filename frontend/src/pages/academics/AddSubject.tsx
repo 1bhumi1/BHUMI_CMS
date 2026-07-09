@@ -1,316 +1,389 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Navigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
-import {
-  Plus, Edit2, Trash2, BookMarked, Search, Loader2, ChevronLeft,
-  ChevronRight, Check, AlertCircle, X, Filter
+import { Navigate } from 'react-router-dom';
+import { 
+  BookMarked, Plus, Edit2, Trash2, Search, Filter, 
+  RotateCcw, X, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle
 } from 'lucide-react';
+import Toast from '../../components/Toast';
+import { useAcademicSession } from '../../lib/AcademicSessionContext';
 
-// Form validation schema with Zod
-const subjectFormSchema = z.object({
-  academic_session_id: z.coerce.number().min(1, 'Academic Session is required'),
-  academic_session_half: z.string().min(1, 'Academic Session period is required'),
-  semester: z.coerce.number().min(1, 'Semester is required'),
-  subject_category: z.string().min(1, 'Subject Category is required'),
-  univ_category_code: z.string().min(1, 'Category Code is required'),
-  univ_subject_code_prefix: z.string().min(1, 'Subject Code Prefix is required'),
-  univ_subject_code_number: z.string().min(1, 'Subject Code Number is required'),
-  univ_subject_code_suffix: z.string().min(1, 'Suffix is required'),
-  subject_name: z.string().min(1, 'Subject Name is required').max(150, 'Subject Name cannot exceed 150 characters'),
-  subject_type: z.string().min(1, 'Subject Type is required'),
-  active: z.coerce.number().default(1)
-});
-
-type SubjectFormValues = z.infer<typeof subjectFormSchema>;
-
-const defaultValues: SubjectFormValues = {
-  academic_session_id: 0,
-  academic_session_half: '',
-  semester: 0,
-  subject_category: '',
-  univ_category_code: '',
-  univ_subject_code_prefix: '',
-  univ_subject_code_number: '',
-  univ_subject_code_suffix: 'NO',
-  subject_name: '',
-  subject_type: '',
-  active: 1
+// Form Data Type Definition matching the detailed database schema
+type SubjectFormData = {
+  academic_session: string;
+  category: 'Compulsory Subject' | 'Department Subject' | 'Open Elective Subject';
+  subject_category_id: string;
+  subject_code_id: string;
+  sequence_number: string;
+  university_subject_code: string;
+  subject_code: string;
+  subject_name: string;
+  subject_type: string;
+  semester: string;
+  department_id: string; // empty string represents null/not selected
+  active: number;
 };
 
-export default function AddSubject() {
+type Department = { id: number; name: string; dept_code: string };
+
+type DBSubjectCategory = {
+  id: number;
+  category: string;
+  category_code: string;
+  active: number;
+};
+
+type DBSubjectCode = {
+  id: number;
+  sub_code: string;
+  hod_computer_code: number | null;
+  department: number | null;
+};
+
+// Fixed Frontend Constants as per constraints
+const SUBJECT_TYPES = ["Theory", "Practical", "Non-Credit Theory", "Non-Credit Practical"];
+const SEMESTERS = ["1", "2", "3", "4", "5", "6", "7", "8"];
+
+const AddSubject = () => {
   const { role } = useAuth();
   const queryClient = useQueryClient();
 
-  // Route Guard: Only HOD can access
+  // Route Guard: HOD only access
   if (role !== 'HOD') {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // Toast notifications state
+  // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  
-  // Edit mode state
-  const [isEditing, setIsEditing] = useState(false);
+
+  // Dynamic dropdown data
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loadingDepts, setLoadingDepts] = useState(true);
+
+  // DB backed categories and subject codes
+  const [dbCategories, setDbCategories] = useState<DBSubjectCategory[]>([]);
+  const [dbSubjectCodes, setDbSubjectCodes] = useState<DBSubjectCode[]>([]);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(true);
+
+  // Database session matching list
+  const [dbSessions, setDbSessions] = useState<{ id: number; name: string }[]>([]);
+
+  // Frontend datatable state populated from DB
+  const [subjectsList, setSubjectsList] = useState<any[]>([]);
+  const [totalSubjects, setTotalSubjects] = useState(0);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Form setup
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    formState: { errors }
-  } = useForm<SubjectFormValues>({
-    resolver: zodResolver(subjectFormSchema),
-    defaultValues
-  });
+  // Table Pagination, Filters and Search State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSemester, setFilterSemester] = useState('');
+  const [filterDept, setFilterDept] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
 
-  const watchedCategory = watch('subject_category');
-  const watchedSessionId = watch('academic_session_id');
-  const watchedSessionHalf = watch('academic_session_half');
+  const { currentSession } = useAcademicSession();
 
-  // We maintain selected session option in a state formatted as "id_half" to drive both fields
-  const [selectedSessionOption, setSelectedSessionOption] = useState<string>('');
-
-  // View subjects filters & pagination state
-  const [filterSessionVal, setFilterSessionVal] = useState<string>('');
-  const [filterSemester, setFilterSemester] = useState<string>('');
-  const [filterSearch, setFilterSearch] = useState<string>('');
-  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
-  const [page, setPage] = useState(1);
-  const limit = 10;
-
-  // Debounce search input
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(filterSearch);
-      setPage(1);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [filterSearch]);
-
-  // Load master data from DB
-  const { data: sessionsData = [] } = useQuery({
-    queryKey: ['academic-sessions-dropdown'],
-    queryFn: async () => {
-      const res = await api.get('/academic-sessions/dropdown');
-      return res.data?.data?.sessions || [];
+  // React Hook Form initialization
+  const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<SubjectFormData>({
+    defaultValues: {
+      academic_session: '',
+      category: 'Compulsory Subject',
+      subject_category_id: '',
+      subject_code_id: '',
+      sequence_number: '',
+      university_subject_code: '',
+      subject_code: '',
+      subject_name: '',
+      subject_type: '',
+      semester: '',
+      department_id: '',
+      active: 1
     }
   });
 
-  const { data: categoriesRes = [] } = useQuery({
-    queryKey: ['subject-categories'],
-    queryFn: async () => {
-      const res = await api.get('/academic/subject-categories');
-      return res.data?.data || [];
+  // Watch fields for conditional layout and calculations
+  const selectedCategory = watch('category');
+  const watchAcademicSession = watch('academic_session');
+  const watchCategory = watch('subject_category_id');
+  const watchCode = watch('subject_code_id');
+  const watchSequence = watch('sequence_number');
+
+  // Match selected top bar session name to database session ID
+  const matchSessionToDBId = (sessionStr: string, sessionsList: { id: number; name: string }[]) => {
+    if (!sessionStr) return null;
+    const match = sessionStr.match(/^(\d{4})-(\d{4})/);
+    if (!match) return null;
+    const startYear = match[1]; // "2025"
+    const endYearShort = match[2].slice(2); // "26"
+    const targetName = `${startYear}-${endYearShort}`; // "2025-26"
+    const found = sessionsList.find(s => s.name === targetName);
+    return found ? found.id : null;
+  };
+
+  // Determine available semesters based on the selected academic session
+  const getAvailableSemesters = (session: string) => {
+    if (!session) return [];
+    if (session.includes('Jan-Jun') || session.includes('Jan-June')) {
+      return ['2', '4', '6', '8'];
     }
-  });
-
-  const { data: codePrefixesRes = [] } = useQuery({
-    queryKey: ['subject-code-prefixes'],
-    queryFn: async () => {
-      const res = await api.get('/academic/subject-code-prefixes');
-      return res.data?.data || [];
-    }
-  });
-
-  const { data: classificationsRes = [] } = useQuery({
-    queryKey: ['subject-classifications'],
-    queryFn: async () => {
-      const res = await api.get('/academic/subject-classifications');
-      return res.data?.data || [];
-    }
-  });
-
-  const { data: typesRes = [] } = useQuery({
-    queryKey: ['subject-types'],
-    queryFn: async () => {
-      const res = await api.get('/academic/subject-types');
-      return res.data?.data || [];
-    }
-  });
-
-  // Fetch paginated subjects list
-  const [filterSessionId, filterSessionHalf] = filterSessionVal ? filterSessionVal.split('_') : [undefined, undefined];
-  const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
-    queryKey: ['subjects', { page, limit, search: debouncedSearch, sessionId: filterSessionId, semester: filterSemester }],
-    queryFn: async () => {
-      let url = `/academic/subjects?skip=${(page - 1) * limit}&limit=${limit}`;
-      if (debouncedSearch) url += `&search=${encodeURIComponent(debouncedSearch)}`;
-      if (filterSessionId) url += `&academic_session_id=${filterSessionId}`;
-      if (filterSemester) url += `&semester=${filterSemester}`;
-      const res = await api.get(url);
-      return res.data?.data || { items: [], total: 0 };
-    }
-  });
-
-  const subjects = subjectsData?.items || [];
-  const total = subjectsData?.total || 0;
-  const totalPages = Math.ceil(total / limit) || 1;
-
-  // Process Academic Sessions options (dynamic format with July-Dec and Jan-June)
-  const sessionOptions = React.useMemo(() => {
-    const list: Array<{ id: number; half: string; name: string }> = [];
-    sessionsData.forEach((s: any) => {
-      // e.g. "2025-26" -> "2025-2026"
-      let formattedName = s.name;
-      const match = s.name.match(/^(\d{4})-(\d{2})$/);
-      if (match) {
-        const year1 = match[1];
-        const year2 = parseInt(match[2]);
-        formattedName = `${year1}-20${year2}`;
-      }
-      
-      list.push({
-        id: s.id,
-        half: 'July-Dec',
-        name: `${formattedName} (July-Dec)`
-      });
-      list.push({
-        id: s.id,
-        half: 'Jan-June',
-        name: `${formattedName} (Jan-June)`
-      });
-    });
-    return list;
-  }, [sessionsData]);
-
-  // Semester dropdown options change dynamically based on July-Dec vs Jan-June
-  const semesterOptions = React.useMemo(() => {
-    if (watchedSessionHalf === 'July-Dec') {
-      return [1, 3, 5, 7];
-    } else if (watchedSessionHalf === 'Jan-June') {
-      return [2, 4, 6, 8];
+    if (session.includes('July-Dec')) {
+      return ['1', '3', '5', '7'];
     }
     return [];
-  }, [watchedSessionHalf]);
+  };
 
-  // Reset semester selection instantly when academic session half changes
+  const availableSemesters = getAvailableSemesters(watchAcademicSession);
+
+  // Clear semester selection when Academic Session changes
   useEffect(() => {
-    setValue('semester', 0, { shouldValidate: isEditing });
-  }, [watchedSessionHalf, setValue, isEditing]);
+    setValue('semester', '');
+  }, [watchAcademicSession, setValue]);
 
-  const handleSessionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    setSelectedSessionOption(val);
-    if (val) {
-      const [id, half] = val.split('_');
-      setValue('academic_session_id', Number(id), { shouldValidate: true });
-      setValue('academic_session_half', half, { shouldValidate: true });
-    } else {
-      setValue('academic_session_id', 0);
-      setValue('academic_session_half', '');
+  // Sync global session to form value
+  useEffect(() => {
+    setValue('academic_session', currentSession);
+  }, [currentSession, setValue]);
+
+  // Fetch subjects from the backend DB based on pagination, filters and search
+  const fetchSubjects = async () => {
+    if (dbSessions.length === 0) return;
+    setLoadingSubjects(true);
+    try {
+      const sessionId = matchSessionToDBId(currentSession, dbSessions);
+      const params: any = {
+        skip: (currentPage - 1) * itemsPerPage,
+        limit: itemsPerPage,
+      };
+      if (searchTerm) params.search = searchTerm;
+      if (filterSemester) params.semester = Number(filterSemester);
+      if (filterDept) params.department = Number(filterDept);
+      if (sessionId) params.academic_session = sessionId;
+
+      const res = await api.get('/academic/subjects', { params });
+      setSubjectsList(res.data?.data?.items || []);
+      setTotalSubjects(res.data?.data?.total || 0);
+    } catch (e) {
+      console.error('Failed to fetch subjects:', e);
+      setToast({ message: 'Failed to load subjects from database', type: 'error' });
+    } finally {
+      setLoadingSubjects(false);
     }
   };
 
-  // Mutations
-  const createMutation = useMutation({
-    mutationFn: async (payload: SubjectFormValues) => {
-      const res = await api.post('/academic/subjects', payload);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subjects'] });
-      setToast({ message: 'Subject added successfully', type: 'success' });
-      reset(defaultValues);
-      setSelectedSessionOption('');
-    },
-    onError: (err: any) => {
-      setToast({ message: err.response?.data?.detail || 'Failed to add subject', type: 'error' });
-    }
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: number; payload: SubjectFormValues }) => {
-      const res = await api.put(`/academic/subjects/${id}`, payload);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subjects'] });
-      setToast({ message: 'Subject updated successfully', type: 'success' });
-      setIsEditing(false);
-      setEditingId(null);
-      reset(defaultValues);
-      setSelectedSessionOption('');
-    },
-    onError: (err: any) => {
-      setToast({ message: err.response?.data?.detail || 'Failed to update subject', type: 'error' });
-    }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await api.delete(`/academic/subjects/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subjects'] });
-      setToast({ message: 'Subject deleted successfully', type: 'success' });
-      if (subjects.length === 1 && page > 1) {
-        setPage(page - 1);
+  // Load dropdown options and sessions on mount
+  useEffect(() => {
+    const loadDropdowns = async () => {
+      setLoadingDepts(true);
+      setLoadingDropdowns(true);
+      try {
+        const [deptRes, catRes, codeRes, sessionRes] = await Promise.all([
+          api.get('/academic/departments'),
+          api.get('/academic/subject-categories'),
+          api.get('/academic/subject-codes'),
+          api.get('/academic-sessions/dropdown')
+        ]);
+        setDepartments(deptRes.data?.data || []);
+        
+        // Active categories
+        setDbCategories((catRes.data?.data || []).filter((c: any) => c.active === 1));
+        setDbSubjectCodes(codeRes.data?.data || []);
+        setDbSessions(sessionRes.data?.data?.sessions || []);
+      } catch (e) {
+        console.error('Error loading dropdown options:', e);
+        setToast({ message: 'Error loading dropdown configurations', type: 'error' });
+      } finally {
+        setLoadingDepts(false);
+        setLoadingDropdowns(false);
       }
-    },
-    onError: (err: any) => {
-      setToast({ message: err.response?.data?.detail || 'Failed to delete subject', type: 'error' });
-    }
-  });
+    };
+    loadDropdowns();
+  }, []);
 
-  const onSubmit = (data: SubjectFormValues) => {
-    if (isEditing && editingId) {
-      updateMutation.mutate({ id: editingId, payload: data });
+  // Fetch subjects whenever pagination or filters change
+  useEffect(() => {
+    fetchSubjects();
+  }, [currentPage, searchTerm, filterSemester, filterDept, currentSession, dbSessions]);
+
+  // Generate university subject code in real time
+  useEffect(() => {
+    const category = dbCategories.find(c => c.id === Number(watchCategory));
+    const code = dbSubjectCodes.find(c => c.id === Number(watchCode));
+    const seq = (watchSequence || '').trim();
+
+    if (category && code && seq) {
+      const generated = `${category.category_code}-${code.sub_code}-${seq}`;
+      setValue('university_subject_code', generated);
     } else {
-      createMutation.mutate(data);
+      setValue('university_subject_code', '');
+    }
+  }, [watchCategory, watchCode, watchSequence, dbCategories, dbSubjectCodes, setValue]);
+
+  // Handle Form Submission (Real backend integration)
+  const onSubmit = async (data: SubjectFormData) => {
+    try {
+      const sessionId = matchSessionToDBId(currentSession, dbSessions);
+      if (!sessionId) {
+        setToast({ message: 'Invalid academic session selected.', type: 'error' });
+        return;
+      }
+
+      // Determine category code
+      const cat = dbCategories.find(c => c.id === Number(data.subject_category_id));
+      const categoryCode = cat ? cat.category_code : 'PCC';
+
+      // Determine elective value
+      const electiveVal = (categoryCode === 'PCC') ? 0 : 1;
+
+      // Resolve selected sub_code from subject_code table
+      const subCodeObj = dbSubjectCodes.find(c => c.id === Number(data.subject_code_id));
+      const subCodeStr = subCodeObj ? subCodeObj.sub_code : '';
+
+      const payload = {
+        semester: Number(data.semester),
+        academic_session: sessionId,
+        clg_sub_code: data.subject_code, // College Subject Code user entered
+        university_sub_code: data.university_subject_code, // Selected university subject code complete string
+        subject_name: data.subject_name,
+        type: data.subject_type,
+        department: data.category !== 'Compulsory Subject' && data.department_id ? Number(data.department_id) : null,
+        active: Number(data.active),
+        elective: electiveVal,
+        priority: categoryCode, // store category code in priority
+        remark: cat ? cat.category : ''
+      };
+
+      if (editingId !== null) {
+        await api.put(`/academic/subjects/${editingId}`, payload);
+        setToast({ message: 'Subject updated successfully in database', type: 'success' });
+        setEditingId(null);
+      } else {
+        await api.post('/academic/subjects', payload);
+        setToast({ message: 'Subject created successfully in database', type: 'success' });
+      }
+
+      // Reset form
+      handleFormReset();
+      // Reload list
+      fetchSubjects();
+    } catch (e: any) {
+      console.error('Error saving subject:', e);
+      setToast({ message: e.response?.data?.detail || 'Error saving subject to database', type: 'error' });
     }
   };
 
-  const handleEditClick = (sub: any) => {
-    setIsEditing(true);
+  // Edit Mode Activation (pre-fills form)
+  const handleEdit = (sub: any) => {
     setEditingId(sub.id);
+
+    // Resolve category select values
+    const catCode = sub.priority || 'PCC';
+    const cat = dbCategories.find(c => c.category_code === catCode);
+    const categorySelId = cat ? cat.id.toString() : '';
+
+    // Resolve subject code select values
+    const subCodeStr = sub.university_sub_code || '';
+    let codeSelId = '';
+    let seqStr = '';
+    
+    // Parse PCC-CS-01 to find CS in subject codes and 01 as sequence
+    if (subCodeStr.includes('-')) {
+      const parts = subCodeStr.split('-');
+      if (parts.length === 3) {
+        const [_, subCode, seq] = parts;
+        const codeObj = dbSubjectCodes.find(c => c.sub_code === subCode);
+        if (codeObj) codeSelId = codeObj.id.toString();
+        seqStr = seq;
+      }
+    }
+
+    // Set category string matching form
+    let categoryName: any = 'Compulsory Subject';
+    if (catCode === 'PEC') categoryName = 'Department Subject';
+    if (catCode === 'OEC') categoryName = 'Open Elective Subject';
+
     reset({
-      academic_session_id: sub.academic_session_id,
-      academic_session_half: sub.academic_session_half,
-      semester: sub.semester,
-      subject_category: sub.subject_category,
-      univ_category_code: sub.univ_category_code || '',
-      univ_subject_code_prefix: sub.univ_subject_code_prefix || '',
-      univ_subject_code_number: sub.univ_subject_code_number || '',
-      univ_subject_code_suffix: sub.univ_subject_code_suffix || '',
-      subject_name: sub.subject_name,
-      subject_type: sub.subject_type,
+      academic_session: currentSession,
+      category: categoryName,
+      subject_category_id: categorySelId,
+      subject_code_id: codeSelId,
+      sequence_number: seqStr,
+      university_subject_code: subCodeStr,
+      subject_code: sub.clg_sub_code || '', // College code
+      subject_name: sub.subject_name || '',
+      subject_type: sub.type || '',
+      semester: sub.semester ? sub.semester.toString() : '',
+      department_id: sub.department ? sub.department.toString() : '',
       active: sub.active
     });
-    setSelectedSessionOption(`${sub.academic_session_id}_${sub.academic_session_half}`);
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditingId(null);
-    reset(defaultValues);
-    setSelectedSessionOption('');
-  };
-
-  const handleDeleteClick = (id: number) => {
+  // Delete Action
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this subject?')) {
-      deleteMutation.mutate(id);
+      try {
+        await api.delete(`/academic/subjects/${id}`);
+        setToast({ message: 'Subject deleted successfully from database', type: 'success' });
+        fetchSubjects();
+        if (editingId === id) {
+          setEditingId(null);
+          handleFormReset();
+        }
+      } catch (e: any) {
+        setToast({ message: e.response?.data?.detail || 'Error deleting subject', type: 'error' });
+      }
     }
   };
 
+  // Form Reset handler
+  const handleFormReset = () => {
+    reset({
+      academic_session: currentSession,
+      category: 'Compulsory Subject',
+      subject_category_id: '',
+      subject_code_id: '',
+      sequence_number: '',
+      university_subject_code: '',
+      subject_code: '',
+      subject_name: '',
+      subject_type: '',
+      semester: '',
+      department_id: '',
+      active: 1
+    });
+  };
+
+  // Cancel Edit Mode
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    handleFormReset();
+  };
+
+  // Pagination calculation
+  const totalPages = Math.ceil(totalSubjects / itemsPerPage) || 1;
+
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50 min-h-screen">
-      <div className="p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
-        {toast && (
-          <div className={`fixed top-6 right-6 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl text-white text-sm font-semibold animate-slide-in ${
-            toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
-          }`}>
-            {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
-            {toast.message}
-            <button onClick={() => setToast(null)} className="ml-2 hover:opacity-75"><X size={16} /></button>
+    <div className="flex-1 min-h-screen bg-slate-50/50">
+      <div className="p-8 max-w-6xl mx-auto space-y-8">
+        
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+        {/* Title and Header Banner */}
+        <div className="flex justify-between items-center border-b border-slate-200 pb-4">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
+              <BookMarked className="text-blue-600 w-8 h-8" /> 
+              <span>Add Subject</span>
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">Configure, catalog and view academic course subjects</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+              Module: Schema Management
+            </span>
           </div>
         )}
 
@@ -493,171 +566,520 @@ export default function AddSubject() {
           </form>
         </div>
 
-        {/* View Subjects Section */}
-        <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-6 md:p-8 space-y-6">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <ClipboardList className="text-blue-600" /> View Subjects
+        {/* Card Form */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
+          <div className="p-6 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <Plus className="text-blue-600" /> 
+              <span>{editingId !== null ? 'Modify Subject Record' : 'Configure New Subject'}</span>
             </h2>
-            <p className="text-sm text-slate-500 mt-1">Search, filter, and manage existing subjects</p>
-          </div>
-
-          {/* Filters Toolbar */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Academic Session</label>
-              <select
-                value={filterSessionVal}
-                onChange={(e) => { setFilterSessionVal(e.target.value); setPage(1); }}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-              >
-                <option value="">All Sessions</option>
-                {sessionOptions.map((opt) => (
-                  <option key={`filter_${opt.id}_${opt.half}`} value={`${opt.id}_${opt.half}`}>
-                    {opt.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Semester</label>
-              <select
-                value={filterSemester}
-                onChange={(e) => { setFilterSemester(e.target.value); setPage(1); }}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-              >
-                <option value="">All Semesters</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                  <option key={`filter_sem_${sem}`} value={sem}>
-                    Semester {sem}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Search Code / Name</label>
-              <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Type to search..."
-                  value={filterSearch}
-                  onChange={(e) => setFilterSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Subjects Table */}
-          <div className="overflow-x-auto border border-slate-100 rounded-xl">
-            {subjectsLoading ? (
-              <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
-                <Loader2 size={32} className="animate-spin text-blue-600" />
-                <span>Loading subjects list...</span>
-              </div>
-            ) : (
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100">
-                    <th className="px-6 py-3.5 font-bold text-slate-600">Subject Code</th>
-                    <th className="px-6 py-3.5 font-bold text-slate-600">Subject Name</th>
-                    <th className="px-6 py-3.5 font-bold text-slate-600">Session</th>
-                    <th className="px-6 py-3.5 font-bold text-slate-600">Semester</th>
-                    <th className="px-6 py-3.5 font-bold text-slate-600">Category</th>
-                    <th className="px-6 py-3.5 font-bold text-slate-600">Type</th>
-                    <th className="px-6 py-3.5 font-bold text-slate-600 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {subjects.map((sub: any) => {
-                    // Format session name
-                    let sessName = '-';
-                    if (sub.academic_session?.session_name) {
-                      let formatted = sub.academic_session.session_name;
-                      const match = formatted.match(/^(\d{4})-(\d{2})$/);
-                      if (match) {
-                        formatted = `${match[1]}-20${match[2]}`;
-                      }
-                      sessName = `${formatted} (${sub.academic_session_half || ''})`;
-                    }
-
-                    return (
-                      <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-semibold text-slate-800">{sub.subject_code}</td>
-                        <td className="px-6 py-4 text-slate-600 font-medium">{sub.subject_name}</td>
-                        <td className="px-6 py-4 text-slate-500 text-xs font-semibold">{sessName}</td>
-                        <td className="px-6 py-4 text-slate-600 font-medium">Semester {sub.semester || '-'}</td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
-                            {sub.subject_category || '-'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
-                            {sub.subject_type || '-'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              onClick={() => handleEditClick(sub)}
-                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
-                              title="Edit Subject"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClick(sub.id)}
-                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                              title="Delete Subject"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {subjects.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-medium">
-                        No subjects found matching the filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            {editingId !== null && (
+              <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-xxs font-bold animate-pulse">
+                Editing Mode Active
+              </span>
             )}
           </div>
 
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              <span className="text-sm text-slate-500 font-medium">
-                Showing Page {page} of {totalPages} ({total} total subjects)
-              </span>
-              <div className="flex gap-2">
-                <button
-                  disabled={page === 1}
-                  onClick={() => setPage(page - 1)}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  disabled={page === totalPages}
-                  onClick={() => setPage(page + 1)}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <ChevronRight size={16} />
-                </button>
+          <form id="subject-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+            
+            {/* 1. Subject Category (Radio Buttons) */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-slate-700">Subject Category *</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { value: 'Compulsory Subject', label: 'Compulsory Subject', desc: 'Required for all students in the cohort' },
+                  { value: 'Department Subject', label: 'Department Subject', desc: 'Core subject specific to a chosen department' },
+                  { value: 'Open Elective Subject', label: 'Open Elective Subject', desc: 'Interdisciplinary elective open across college' }
+                ].map(opt => (
+                  <label 
+                    key={opt.value} 
+                    className={`flex flex-col p-4 border rounded-xl cursor-pointer transition-all duration-200 hover:border-blue-400 ${
+                      selectedCategory === opt.value 
+                        ? 'border-blue-600 bg-blue-50/40 ring-1 ring-blue-500' 
+                        : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="radio" 
+                        value={opt.value}
+                        {...register('category')}
+                        className="w-4.5 h-4.5 text-blue-600 border-slate-300 focus:ring-blue-500" 
+                      />
+                      <span className="text-sm font-semibold text-slate-800">{opt.label}</span>
+                    </div>
+                    <span className="text-xs text-slate-500 mt-2 ml-7 leading-relaxed">{opt.desc}</span>
+                  </label>
+                ))}
               </div>
             </div>
-          )}
+
+            {/* 2. Dynamic University Subject Code Generator Row */}
+            <div className="space-y-2.5 border border-slate-200 p-5 rounded-2xl bg-slate-50/30">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                University Subject Code Configuration *
+              </label>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                {/* A. Subject Category Dropdown */}
+                <div className="space-y-1.5">
+                  <label className="block text-xxs font-bold text-slate-500 uppercase tracking-wider">Category *</label>
+                  <select
+                    {...register('subject_category_id', { required: 'Category is required' })}
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                      errors.subject_category_id ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300'
+                    }`}
+                  >
+                    <option value="">Select Category</option>
+                    {dbCategories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.category} ({cat.category_code})</option>
+                    ))}
+                  </select>
+                  {errors.subject_category_id && (
+                    <p className="text-xxs font-medium text-red-500 flex items-center gap-1 mt-0.5">
+                      <AlertTriangle size={10} /> {errors.subject_category_id.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* B. Subject Code Dropdown */}
+                <div className="space-y-1.5">
+                  <label className="block text-xxs font-bold text-slate-500 uppercase tracking-wider">Subject Code *</label>
+                  <select
+                    disabled={!watchCategory}
+                    {...register('subject_code_id', { required: 'Subject code prefix is required' })}
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                      !watchCategory ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''
+                    } ${
+                      errors.subject_code_id ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300'
+                    }`}
+                  >
+                    <option value="">Select Code</option>
+                    {dbSubjectCodes.map(code => (
+                      <option key={code.id} value={code.id}>{code.sub_code}</option>
+                    ))}
+                  </select>
+                  {errors.subject_code_id && (
+                    <p className="text-xxs font-medium text-red-500 flex items-center gap-1 mt-0.5">
+                      <AlertTriangle size={10} /> {errors.subject_code_id.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* C. Subject Sequence Input */}
+                <div className="space-y-1.5">
+                  <label className="block text-xxs font-bold text-slate-500 uppercase tracking-wider">Sequence / Number *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 01"
+                    disabled={!watchCode}
+                    {...register('sequence_number', { 
+                      required: 'Sequence number is required',
+                      pattern: {
+                        value: /^[0-9]+$/,
+                        message: 'Digits only'
+                      }
+                    })}
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                      !watchCode ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''
+                    } ${
+                      errors.sequence_number ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300'
+                    }`}
+                  />
+                  {errors.sequence_number && (
+                    <p className="text-xxs font-medium text-red-500 flex items-center gap-1 mt-0.5">
+                      <AlertTriangle size={10} /> {errors.sequence_number.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* D. Read-only Complete Subject Code */}
+                <div className="space-y-1.5">
+                  <label className="block text-xxs font-bold text-blue-600 uppercase tracking-wider">Complete Subject Code (Auto)</label>
+                  <input
+                    type="text"
+                    readOnly
+                    placeholder="Auto-generated"
+                    {...register('university_subject_code')}
+                    className="w-full px-3.5 py-2.5 bg-blue-50/50 border border-blue-200 rounded-xl text-sm font-bold text-blue-600 focus:outline-none cursor-not-allowed"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              
+              {/* College Subject Code */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">College Subject Code *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. CS-402"
+                  {...register('subject_code', { required: 'College subject code is required' })}
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    errors.subject_code ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300'
+                  }`}
+                />
+                {errors.subject_code && (
+                  <p className="text-xs font-medium text-red-500 flex items-center gap-1 mt-1">
+                    <AlertTriangle size={12} /> {errors.subject_code.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Subject Name */}
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Subject Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Artificial Intelligence"
+                  {...register('subject_name', { required: 'Subject name is required' })}
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    errors.subject_name ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300'
+                  }`}
+                />
+                {errors.subject_name && (
+                  <p className="text-xs font-medium text-red-500 flex items-center gap-1 mt-1">
+                    <AlertTriangle size={12} /> {errors.subject_name.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Subject Type */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Subject Type *</label>
+                <select
+                  {...register('subject_type', { required: 'Subject type is required' })}
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    errors.subject_type ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300'
+                  }`}
+                >
+                  <option value="">Select Type</option>
+                  {SUBJECT_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                {errors.subject_type && (
+                  <p className="text-xs font-medium text-red-500 flex items-center gap-1 mt-1">
+                    <AlertTriangle size={12} /> {errors.subject_type.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Semester */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Semester *</label>
+                <select
+                  disabled={!watchAcademicSession}
+                  {...register('semester', { required: 'Semester is required' })}
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    !watchAcademicSession ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''
+                  } ${
+                    errors.semester ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300'
+                  }`}
+                >
+                  <option value="">Select Semester</option>
+                  {availableSemesters.map(sem => (
+                    <option key={sem} value={sem}>Semester {sem}</option>
+                  ))}
+                </select>
+                {errors.semester && (
+                  <p className="text-xs font-medium text-red-500 flex items-center gap-1 mt-1">
+                    <AlertTriangle size={12} /> {errors.semester.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Department */}
+              {selectedCategory !== 'Compulsory Subject' ? (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Department *</label>
+                  <select
+                    {...register('department_id', { 
+                      required: 'Department is required for this category'
+                    })}
+                    className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                      errors.department_id ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300'
+                    }`}
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id}>{dept.name} ({dept.dept_code})</option>
+                    ))}
+                  </select>
+                  {errors.department_id && (
+                    <p className="text-xs font-medium text-red-500 flex items-center gap-1 mt-1">
+                      <AlertTriangle size={12} /> {errors.department_id.message}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-slate-50 p-4 border border-dashed border-slate-200 rounded-xl flex items-center justify-center text-center">
+                  <span className="text-xs font-medium text-slate-400">Department hidden for Compulsory Subject</span>
+                </div>
+              )}
+            </div>
+
+            {/* Active Status Checkbox */}
+            <div className="flex items-center gap-2.5">
+              <input
+                id="active"
+                type="checkbox"
+                checked={watch('active') === 1}
+                onChange={e => setValue('active', e.target.checked ? 1 : 0)}
+                className="w-4.5 h-4.5 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="active" className="text-sm font-medium text-slate-700 cursor-pointer">
+                Mark Subject as Active
+              </label>
+            </div>
+
+            {/* Form Action Buttons */}
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleFormReset}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition-all active:scale-95 flex items-center gap-1.5"
+              >
+                <RotateCcw size={15} /> Reset
+              </button>
+              {editingId !== null ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-sm font-medium transition-all active:scale-95"
+                  >
+                    Cancel Edit
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-blue-150 active:scale-95 flex items-center gap-1.5"
+                  >
+                    <CheckCircle size={15} /> Save Changes
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-blue-150 active:scale-95 flex items-center gap-1.5"
+                >
+                  <Plus size={15} /> Create Subject
+                </button>
+              )}
+            </div>
+
+          </form>
         </div>
+
+        {/* Section 2: View Subjects Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-300 hover:shadow-md">
+          <div className="p-6 border-b border-slate-100 bg-slate-50/70">
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <BookMarked size={18} className="text-blue-600" /> View Subjects List
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">Filter, search, view details, edit or delete courses</p>
+          </div>
+
+          <div className="p-6 space-y-6">
+            
+            {/* Filter Toolbar */}
+            <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+              
+              {/* Search Box */}
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by code, name, or university code..."
+                  value={searchTerm}
+                  onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                />
+                {searchTerm && (
+                  <button 
+                    onClick={() => setSearchTerm('')} 
+                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+
+              {/* Semester Filter */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-sm">
+                  <Filter size={14} className="text-slate-500" />
+                  <span className="text-slate-500 font-medium text-xs">Sem:</span>
+                  <select
+                    value={filterSemester}
+                    onChange={e => { setFilterSemester(e.target.value); setCurrentPage(1); }}
+                    className="bg-transparent focus:outline-none font-semibold text-slate-700"
+                  >
+                    <option value="">All Semesters</option>
+                    {SEMESTERS.map(sem => (
+                      <option key={sem} value={sem}>Semester {sem}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Department Filter */}
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-sm">
+                  <Filter size={14} className="text-slate-500" />
+                  <span className="text-slate-500 font-medium text-xs">Dept:</span>
+                  <select
+                    value={filterDept}
+                    onChange={e => { setFilterDept(e.target.value); setCurrentPage(1); }}
+                    className="bg-transparent focus:outline-none font-semibold text-slate-700 max-w-[200px]"
+                  >
+                    <option value="">All Departments</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id}>{dept.dept_code} - {dept.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Subjects List Data Table */}
+            <div className="overflow-x-auto border border-slate-100 rounded-xl">
+              {loadingSubjects ? (
+                <div className="p-8 text-center text-slate-400 font-medium">Loading subjects data...</div>
+              ) : (
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 border-b border-slate-150">
+                    <tr>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700">Subject Code</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700">University Code</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700">Subject Name</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700">Category</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700">Type</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700 text-center">Semester</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700">Department</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700">Academic Session</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700 text-center">Status</th>
+                      <th className="px-5 py-3.5 font-semibold text-slate-700 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {subjectsList.map(sub => {
+                      const categoryCode = sub.priority || 'PCC';
+                      let catName = 'Compulsory Subject';
+                      if (categoryCode === 'PEC') catName = 'Department Subject';
+                      if (categoryCode === 'OEC') catName = 'Open Elective Subject';
+
+                      const sessionObj = dbSessions.find(s => s.id === sub.academic_session);
+                      const sessionName = sessionObj ? sessionObj.name : `Session ID: ${sub.academic_session}`;
+
+                      const deptObj = departments.find(d => d.id === sub.department);
+                      const deptName = deptObj ? deptObj.name : 'Universal / All';
+
+                      return (
+                        <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-5 py-4 font-bold text-slate-900">{sub.clg_sub_code}</td>
+                          <td className="px-5 py-4 font-mono text-xs text-blue-600 font-bold">{sub.university_sub_code}</td>
+                          <td className="px-5 py-4 font-medium text-slate-800">{sub.subject_name}</td>
+                          <td className="px-5 py-4">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xxs font-semibold ${
+                              categoryCode === 'PCC' 
+                                ? 'bg-purple-50 text-purple-700 border border-purple-100'
+                                : categoryCode === 'PEC'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            }`}>
+                              {catName}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-xs font-semibold text-slate-600">{sub.type}</td>
+                          <td className="px-5 py-4 text-center text-slate-700">Sem {sub.semester}</td>
+                          <td className="px-5 py-4 text-xs text-slate-500 font-medium">
+                            {deptName}
+                          </td>
+                          <td className="px-5 py-4 text-xs text-slate-600 font-semibold">{sessionName}</td>
+                          <td className="px-5 py-4 text-center">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xxs font-bold ${
+                              sub.active === 1 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                : 'bg-slate-150 text-slate-600 border border-slate-200'
+                            }`}>
+                              {sub.active === 1 ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex justify-end gap-1.5">
+                              <button
+                                onClick={() => handleEdit(sub)}
+                                title="Edit Subject"
+                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(sub.id)}
+                                title="Delete Subject"
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {subjectsList.length === 0 && (
+                      <tr>
+                        <td colSpan={10} className="px-5 py-8 text-center text-slate-400 font-medium">
+                          No subjects match your criteria. Reset filters or search.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <span className="text-xs font-semibold text-slate-500">
+                  Showing {Math.min(totalSubjects, (currentPage - 1) * itemsPerPage + 1)} to {Math.min(totalSubjects, currentPage * itemsPerPage)} of {totalSubjects} subjects
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  {[...Array(totalPages)].map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentPage(idx + 1)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                        currentPage === idx + 1 
+                          ? 'bg-blue-600 text-white' 
+                          : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {idx + 1}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+
       </div>
     </div>
   );

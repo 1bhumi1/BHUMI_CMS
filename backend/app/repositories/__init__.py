@@ -30,11 +30,12 @@ from app.repositories.academic import (
     AcademicSessionRepository,
     AcademicTermRepository,
     SubjectRepository,
-    SubjectCreditRepository,
     SubjectCategoryRepository,
     SubjectCodeRepository,
     SubjectClassificationRepository,
     SubjectTypeRepository,
+    SubjectNewCreditRepository,
+    SubjectNewRepository,
 )
 
 # Instantiate repository singletons for injection
@@ -66,11 +67,12 @@ academic_program_repo = AcademicProgramRepository()
 academic_session_repo = AcademicSessionRepository()
 academic_term_repo = AcademicTermRepository()
 subject_repo = SubjectRepository()
-subject_credit_repo = SubjectCreditRepository()
 subject_category_repo = SubjectCategoryRepository()
 subject_code_repo = SubjectCodeRepository()
 subject_classification_repo = SubjectClassificationRepository()
 subject_type_repo = SubjectTypeRepository()
+subject_new_credit_repo = SubjectNewCreditRepository()
+subject_new_repo = SubjectNewRepository()
 
 from app.repositories.feedback import FeedbackRepository
 feedback_repo = FeedbackRepository()

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../lib/AuthContext';
-import { Bell, User, Trash2, CheckSquare } from 'lucide-react';
+import { Bell, User, Trash2, CheckSquare, Calendar, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
+import { useLocation } from 'react-router-dom';
+import { useAcademicSession } from '../lib/AcademicSessionContext';
 
 interface NotificationItem {
   id: number;
@@ -15,6 +17,20 @@ const Topbar = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const location = useLocation();
+  const { currentSession, setSession } = useAcademicSession();
+  const [isSessionOpen, setIsSessionOpen] = useState(false);
+  const sessionDropdownRef = useRef<HTMLDivElement>(null);
+
+  const isAcademicsPage = location.pathname.includes('academics');
+
+  const SESSIONS = [
+    '2025-2026 (July-Dec)',
+    '2025-2026 (Jan-Jun)',
+    '2026-2027 (July-Dec)',
+    '2026-2027 (Jan-Jun)'
+  ];
 
   const fetchNotifications = async () => {
     try {
@@ -34,11 +50,14 @@ const Topbar = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle click outside to close dropdown
+  // Handle click outside to close dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+      }
+      if (sessionDropdownRef.current && !sessionDropdownRef.current.contains(event.target as Node)) {
+        setIsSessionOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -90,6 +109,37 @@ const Topbar = () => {
       </div>
 
       <div className="flex items-center gap-6">
+        {/* Academic Session Selector */}
+        <div className="relative font-sans" ref={sessionDropdownRef}>
+          <button
+            onClick={() => setIsSessionOpen(!isSessionOpen)}
+            className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-350 rounded-xl text-xs font-bold text-slate-700 transition-all active:scale-98 shadow-sm"
+          >
+            <Calendar size={14} className="text-slate-500" />
+            <span>{currentSession}</span>
+            <ChevronDown size={14} className="text-slate-400" />
+          </button>
+
+          {isSessionOpen && (
+            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1.5 overflow-hidden">
+              {SESSIONS.map(session => (
+                <button
+                  key={session}
+                  onClick={() => {
+                    setSession(session);
+                    setIsSessionOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-xs font-semibold hover:bg-slate-50 transition-colors ${
+                    currentSession === session ? 'text-indigo-600 bg-indigo-50/20' : 'text-slate-700'
+                  }`}
+                >
+                  {session}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Notification Bell Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button

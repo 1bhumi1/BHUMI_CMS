@@ -11,11 +11,12 @@ from app.models.academic import (
     AcademicSession,
     AcademicTerm,
     Subject,
-    SubjectCredit,
     SubjectCategory,
     SubjectCode,
     SubjectClassification,
     SubjectType,
+    SubjectNewCredit,
+    SubjectNew,
 )
 
 class InstituteRepository(BaseRepository[Institute]):
@@ -137,15 +138,9 @@ class SubjectRepository(BaseRepository[Subject]):
         return items, total
 
 
-class SubjectCreditRepository(BaseRepository[SubjectCredit]):
+class SubjectNewCreditRepository(BaseRepository[SubjectNewCredit]):
     def __init__(self):
-        super().__init__(SubjectCredit)
-
-    async def get_multi_detailed(self, db: AsyncSession) -> List[SubjectCredit]:
-        from sqlalchemy.orm import joinedload
-        query = select(SubjectCredit).options(joinedload(SubjectCredit.subject))
-        result = await db.execute(query)
-        return list(result.scalars().all())
+        super().__init__(SubjectNewCredit)
 
 
 class SubjectCategoryRepository(BaseRepository[SubjectCategory]):
@@ -156,6 +151,55 @@ class SubjectCategoryRepository(BaseRepository[SubjectCategory]):
 class SubjectCodeRepository(BaseRepository[SubjectCode]):
     def __init__(self):
         super().__init__(SubjectCode)
+
+
+class SubjectNewRepository(BaseRepository[SubjectNew]):
+    def __init__(self):
+        super().__init__(SubjectNew)
+
+    async def get_multi_filtered(
+        self,
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 100,
+        search: Optional[str] = None,
+        semester: Optional[int] = None,
+        session_id: Optional[int] = None,
+        department_id: Optional[int] = None
+    ):
+        from sqlalchemy import or_, and_, func
+        query = select(SubjectNew)
+        conditions = []
+        
+        if semester is not None:
+            conditions.append(SubjectNew.semester == semester)
+        if session_id is not None:
+            conditions.append(SubjectNew.academic_session == session_id)
+        if department_id is not None:
+            conditions.append(SubjectNew.department == department_id)
+        if search:
+            conditions.append(
+                or_(
+                    SubjectNew.subject_name.ilike(f"%{search}%"),
+                    SubjectNew.clg_sub_code.ilike(f"%{search}%"),
+                    SubjectNew.university_sub_code.ilike(f"%{search}%")
+                )
+            )
+            
+        if conditions:
+            query = query.where(and_(*conditions))
+            
+        # Get total count
+        count_query = select(func.count()).select_from(query.subquery())
+        count_res = await db.execute(count_query)
+        total = count_res.scalar() or 0
+        
+        # Apply limit and skip
+        query = query.offset(skip).limit(limit)
+        result = await db.execute(query)
+        items = list(result.scalars().all())
+        
+        return items, total
 
 
 class SubjectClassificationRepository(BaseRepository[SubjectClassification]):
