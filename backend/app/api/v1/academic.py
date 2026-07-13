@@ -288,6 +288,7 @@ async def delete_academic_term(
 
 from app.models.system import Role
 from app.models.staff import StaffRole
+from app.models.system import Role
 from sqlalchemy import select
 from fastapi import HTTPException
 

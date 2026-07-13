@@ -1,9 +1,23 @@
+# Node.js Comparison:
+# In Node.js/Express, we validate request bodies using libraries like Joi, Zod, or express-validator.
+# Example using Zod:
+# const StudentCreateSchema = z.object({
+#   computer_code: z.number(),
+#   first_name: z.string().max(100),
+#   email: z.string().email().optional()
+# });
+#
+# In FastAPI, we use Pydantic schemas (inheriting from BaseModel).
+# Pydantic schemas handle:
+# 1. Validation (req.body parsing & error raising)
+# 2. Serialization (converting DB models to JSON responses)
+
 from datetime import date, datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, EmailStr, field_validator
 import re
 
-# Helper validators
+# Helper validators (Equivalent to custom validator functions in Joi/Zod)
 def validate_mobile_field(v: Optional[str]) -> Optional[str]:
     if v is not None:
         if not re.match(r"^\+?[0-9]{10,15}$", v):
@@ -16,7 +30,16 @@ def validate_aadhar_field(v: Optional[str]) -> Optional[str]:
             raise ValueError("Aadhar number must be exactly 12 digits.")
     return v
 
+
 # Address Schemas
+# Express/Joi Equivalent:
+# const StudentAddressCreate = Joi.object({
+#   address_type: Joi.string().valid('permanent', 'local').required(),
+#   address_line: Joi.string().min(5).max(500).required(),
+#   district: Joi.string().max(100).optional(),
+#   state: Joi.string().max(100).optional(),
+#   pincode: Joi.string().max(10).optional()
+# });
 class StudentAddressCreate(BaseModel):
     address_type: str = Field(..., description="permanent or local")
     address_line: str = Field(..., min_length=5, max_length=500)
@@ -24,6 +47,9 @@ class StudentAddressCreate(BaseModel):
     state: Optional[str] = Field(None, max_length=100)
     pincode: Optional[str] = Field(None, max_length=10)
 
+    # Field validator for enum verification
+    # Express Equivalent (Zod):
+    # address_type: z.enum(["permanent", "local"])
     @field_validator("address_type")
     @classmethod
     def validate_address_type(cls, v: str) -> str:
@@ -31,6 +57,11 @@ class StudentAddressCreate(BaseModel):
             raise ValueError("address_type must be either 'permanent' or 'local'")
         return v
 
+
+# Response Schema (Used to format JSON output sent to the client)
+# Express Equivalent:
+# In Express, we serialize data manually or using templates/DTOs:
+# res.json({ id: addr.id, student_id: addr.student_id, ... });
 class StudentAddressResponse(BaseModel):
     id: int
     student_id: int
@@ -40,8 +71,13 @@ class StudentAddressResponse(BaseModel):
     state: Optional[str] = None
     pincode: Optional[str] = None
 
+    # Config class allows Pydantic to read SQLAlchemy model object attributes
+    # In Node.js, we can do JSON.stringify(dbModel) directly.
+    # In FastAPI, setting 'from_attributes = True' tells Pydantic:
+    # "Hey, you can read fields using object dot-notation (e.g., student.id) instead of just dict brackets."
     class Config:
         from_attributes = True
+
 
 # Admission Schemas
 class StudentAdmissionCreate(BaseModel):
@@ -68,6 +104,7 @@ class StudentAdmissionCreate(BaseModel):
             raise ValueError("status must be 'active', 'completed', 'cancelled', or 'dropout'")
         return v
 
+
 class StudentAdmissionResponse(BaseModel):
     id: int
     student_id: int
@@ -83,6 +120,7 @@ class StudentAdmissionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 # Document Schemas
 class StudentDocumentCreate(BaseModel):
     document_type_id: int
@@ -90,6 +128,7 @@ class StudentDocumentCreate(BaseModel):
     verified: bool = False
     file_path: Optional[str] = Field(None, max_length=500)
     remarks: Optional[str] = Field(None, max_length=500)
+
 
 class StudentDocumentResponse(BaseModel):
     id: int
@@ -105,6 +144,7 @@ class StudentDocumentResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 # Entrance Exam Schemas
 class StudentEntranceExamCreate(BaseModel):
     exam_name: str = Field(..., max_length=100)
@@ -112,6 +152,7 @@ class StudentEntranceExamCreate(BaseModel):
     score: Optional[float] = None
     percentile: Optional[float] = None
     exam_rank: Optional[int] = None
+
 
 class StudentEntranceExamResponse(BaseModel):
     id: int
@@ -124,6 +165,7 @@ class StudentEntranceExamResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 # Guardian Schemas
 class StudentGuardianCreate(BaseModel):
@@ -146,6 +188,7 @@ class StudentGuardianCreate(BaseModel):
     def validate_mobile(cls, v: Optional[str] = None) -> Optional[str]:
         return validate_mobile_field(v)
 
+
 class StudentGuardianResponse(BaseModel):
     id: int
     student_id: int
@@ -158,6 +201,7 @@ class StudentGuardianResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 # Qualification Schemas
 class StudentQualificationCreate(BaseModel):
@@ -184,6 +228,7 @@ class StudentQualificationCreate(BaseModel):
                 raise ValueError("passing_year must be between 1900 and 2100")
         return v
 
+
 class StudentQualificationResponse(BaseModel):
     id: int
     student_id: int
@@ -198,7 +243,9 @@ class StudentQualificationResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 # Master Student Schemas
+# StudentCreate maps to POST request bodies (req.body when adding a student).
 class StudentCreate(BaseModel):
     computer_code: int = Field(..., description="Manually entered computer code")
     enrollment_no: Optional[str] = Field(None, max_length=50)
@@ -232,6 +279,9 @@ class StudentCreate(BaseModel):
     def validate_mobile(cls, v: Optional[str] = None) -> Optional[str]:
         return validate_mobile_field(v)
 
+
+# StudentUpdate maps to PUT request bodies (req.body when updating a student).
+# All fields are optional since we might only want to update a subset of fields.
 class StudentUpdate(BaseModel):
     computer_code: Optional[int] = None
     enrollment_no: Optional[str] = Field(None, max_length=50)
@@ -266,6 +316,8 @@ class StudentUpdate(BaseModel):
     def validate_mobile(cls, v: Optional[str] = None) -> Optional[str]:
         return validate_mobile_field(v)
 
+
+# StudentResponse maps to the response object structure returned to the client (res.json()).
 class StudentResponse(BaseModel):
     id: int
     computer_code: Optional[int] = None
@@ -289,7 +341,12 @@ class StudentResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 # Composite creation structure (ideal for complete admission pipelines)
+# This represents a nested structure where a single POST request registers the student
+# along with addresses, admission records, guardian details, and qualifications.
+# Express Equivalent:
+# Joi.object({ student: StudentCreate, addresses: Joi.array().items(StudentAddressCreate), ... })
 class CompositeStudentAdmissionCreate(BaseModel):
     student: StudentCreate
     addresses: List[StudentAddressCreate] = []
@@ -298,6 +355,8 @@ class CompositeStudentAdmissionCreate(BaseModel):
     qualifications: List[StudentQualificationCreate] = []
     entrance_exams: List[StudentEntranceExamCreate] = []
 
+
+# Composite update structure
 class CompositeStudentUpdate(BaseModel):
     student: StudentUpdate
     addresses: Optional[List[StudentAddressCreate]] = None
@@ -305,6 +364,7 @@ class CompositeStudentUpdate(BaseModel):
     guardians: Optional[List[StudentGuardianCreate]] = None
     qualifications: Optional[List[StudentQualificationCreate]] = None
     entrance_exams: Optional[List[StudentEntranceExamCreate]] = None
+
 
 # Detailed Student profile response
 class StudentProfileResponse(BaseModel):
