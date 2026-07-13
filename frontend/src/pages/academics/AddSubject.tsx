@@ -48,7 +48,6 @@ const SEMESTERS = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
 const AddSubject = () => {
   const { role } = useAuth();
-  const queryClient = useQueryClient();
 
   // Route Guard: HOD only access
   if (role !== 'HOD') {
@@ -384,185 +383,6 @@ const AddSubject = () => {
               Module: Schema Management
             </span>
           </div>
-        )}
-
-        {/* Form Container */}
-        <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-6 md:p-8 space-y-6 transition-all hover:shadow-lg">
-          {/* Header & Session selector */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <BookMarked className="text-blue-600 animate-pulse" /> {isEditing ? 'Edit Subject:' : 'Add Subject:'}
-            </h2>
-            
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-semibold text-slate-600">Academic Session *</label>
-              <select
-                value={selectedSessionOption}
-                onChange={handleSessionChange}
-                className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
-              >
-                <option value="">Select Session</option>
-                {sessionOptions.map((opt) => (
-                  <option key={`${opt.id}_${opt.half}`} value={`${opt.id}_${opt.half}`}>
-                    {opt.name}
-                  </option>
-                ))}
-              </select>
-              {errors.academic_session_id && (
-                <span className="text-xs text-red-500 font-bold ml-1">Required</span>
-              )}
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Subject Category Radio Buttons */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Subject Category *</label>
-              <div className="flex flex-wrap gap-6 items-center">
-                {classificationsRes.map((cls: any) => (
-                  <label key={cls.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer font-medium hover:text-blue-600 transition-colors">
-                    <input
-                      type="radio"
-                      value={cls.name}
-                      checked={watchedCategory === cls.name}
-                      onChange={() => setValue('subject_category', cls.name, { shouldValidate: true })}
-                      className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 transition-all cursor-pointer"
-                    />
-                    {cls.name}
-                  </label>
-                ))}
-              </div>
-              {errors.subject_category && (
-                <p className="mt-1 text-xs text-red-500 font-medium">{errors.subject_category.message}</p>
-              )}
-            </div>
-
-            {/* University Subject Code (4 parts) */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">University Subject Code *</label>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <select
-                  {...register('univ_category_code')}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-                >
-                  <option value="">Select Category</option>
-                  {categoriesRes.map((c: any) => (
-                    <option key={c.id} value={c.category_code}>
-                      {c.category_code}
-                    </option>
-                  ))}
-                </select>
-                
-                <select
-                  {...register('univ_subject_code_prefix')}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-                >
-                  <option value="">Select Code</option>
-                  {codePrefixesRes.map((c: any) => (
-                    <option key={c.id} value={c.sub_code}>
-                      {c.sub_code}
-                    </option>
-                  ))}
-                </select>
-                
-                <input
-                  type="text"
-                  placeholder="e.g. 501"
-                  {...register('univ_subject_code_number')}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                />
-                
-                <input
-                  type="text"
-                  placeholder="NO"
-                  {...register('univ_subject_code_suffix')}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-slate-50 text-slate-600 font-semibold"
-                />
-              </div>
-              {(errors.univ_category_code || errors.univ_subject_code_prefix || errors.univ_subject_code_number || errors.univ_subject_code_suffix) && (
-                <p className="mt-1.5 text-xs text-red-500 font-medium">
-                  {errors.univ_category_code?.message || errors.univ_subject_code_prefix?.message || errors.univ_subject_code_number?.message || errors.univ_subject_code_suffix?.message || 'Subject Code fields are required'}
-                </p>
-              )}
-            </div>
-
-            {/* Subject Name */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Subject Name *</label>
-              <input
-                type="text"
-                placeholder="Subject Name"
-                {...register('subject_name')}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              />
-              {errors.subject_name && (
-                <p className="mt-1 text-xs text-red-500 font-medium">{errors.subject_name.message}</p>
-              )}
-            </div>
-
-            {/* Subject Type */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Subject Type *</label>
-              <select
-                {...register('subject_type')}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-              >
-                <option value="">Select Subject Type</option>
-                {typesRes.map((t: any) => (
-                  <option key={t.id} value={t.name}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-              {errors.subject_type && (
-                <p className="mt-1 text-xs text-red-500 font-medium">{errors.subject_type.message}</p>
-              )}
-            </div>
-
-            {/* Semester */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Semester *</label>
-              <select
-                {...register('semester')}
-                disabled={!watchedSessionHalf}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-60 cursor-pointer"
-              >
-                <option value="">Select Semester</option>
-                {semesterOptions.map((sem) => (
-                  <option key={sem} value={sem}>
-                    {sem}
-                  </option>
-                ))}
-              </select>
-              {errors.semester && (
-                <p className="mt-1 text-xs text-red-500 font-medium">{errors.semester.message}</p>
-              )}
-            </div>
-
-            {/* Submit Actions */}
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer disabled:opacity-75"
-              >
-                {(createMutation.isPending || updateMutation.isPending) && (
-                  <Loader2 size={16} className="animate-spin" />
-                )}
-                {isEditing ? 'Update Subject' : 'Submit'}
-              </button>
-              
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-          </form>
         </div>
 
         {/* Card Form */}
@@ -1078,9 +898,10 @@ const AddSubject = () => {
 
           </div>
         </div>
-
       </div>
     </div>
   );
-}
+};
+
+export default AddSubject;
 
